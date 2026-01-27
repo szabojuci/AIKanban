@@ -26,11 +26,11 @@ class Application
         $error = $this->initServices($dbFile);
 
         $columns = [
-            'SPRINTBACKLOG' => 'info',
-            'IMPLEMENTÁCIÓ WIP:3' => 'danger',
-            'TESZTELÉS WIP:2' => 'warning',
+            'SPRINT BACKLOG' => 'info',
+            'IMPLEMENTATION WIP:3' => 'danger',
+            'TESTING WIP:2' => 'warning',
             'REVIEW WIP:2' => 'primary',
-            'KÉSZ' => 'success',
+            'DONE' => 'success',
         ];
 
         $projectName = trim($_POST['project_name'] ?? '');
@@ -104,7 +104,7 @@ class Application
                     $currentProjectName = $existingProjects[0];
                 }
             } catch (Exception $e) {
-                $error = "Hiba a projektek betöltésekor: " . $e->getMessage();
+                $error = "Error loading projects: " . $e->getMessage();
             }
         }
 
@@ -137,6 +137,9 @@ class Application
                 case 'commit_to_github':
                     $this->handleCommitToGithub();
                     break;
+                case 'decompose_task':
+                    $this->handleDecomposeTask($currentProjectName, $apiKey);
+                    break;
                 default:
                     break;
             }
@@ -164,7 +167,7 @@ class Application
                     }
                 }
             } catch (Exception $e) {
-                $error = "Hiba történt az adatok olvasása során: " . $e->getMessage();
+                $error = "Error reading data: " . $e->getMessage();
             }
         }
 
@@ -184,13 +187,13 @@ class Application
                 exit;
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("Hiba történt a feladat hozzáadása során: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Szerver oldali hiba: " . $e->getMessage()]);
+                error_log("Error adding task: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => "Server error: " . $e->getMessage()]);
                 exit;
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "A projekt nevének és a feladat leírásának is szerepelnie kell."]);
+            echo json_encode(['success' => false, 'error' => "Project name and task description are required."]);
             exit;
         }
     }
@@ -208,13 +211,14 @@ class Application
                 exit;
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("Hiba történt a feladat törlése során: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Szerver oldali hiba a törlés során: " . $e->getMessage()]);
+                http_response_code(500);
+                error_log("Error deleting task: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => "Server error during deletion: " . $e->getMessage()]);
                 exit;
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Hibás ID a törléshez."]);
+            echo json_encode(['success' => false, 'error' => "Invalid ID for deletion."]);
             exit;
         }
     }
@@ -228,17 +232,18 @@ class Application
             try {
                 $this->taskService->toggleImportance((int)$taskId, (int)$isImportant);
                 header(Config::APP_JSON);
-                echo json_encode(['success' => true]);
+                echo "Success: Importance toggled for task ID {$taskId}";
+                http_response_code(200);
                 exit;
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("Hiba a fontosság frissítése során: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Szerver oldali hiba."]);
+                error_log("Error toggling importance: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => "Server error during importance toggle."]);
                 exit;
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Hibás ID."]);
+            echo json_encode(['success' => false, 'error' => "Invalid ID for importance toggle."]);
             exit;
         }
     }
@@ -253,7 +258,7 @@ class Application
         if (is_numeric($taskId) && in_array($newStatus, array_keys($columns))) {
             try {
                 $this->taskService->updateStatus((int)$taskId, $newStatus, $projectNameForWIP);
-                echo "Sikeres frissítés: ID {$taskId}, új státusz: {$newStatus}";
+                echo "Success: ID {$taskId}, new status: {$newStatus}";
                 http_response_code(200);
                 exit;
             } catch (WipLimitExceededException $e) {
@@ -264,13 +269,13 @@ class Application
             } catch (Exception $e) {
                 $code = $e->getCode() ?: 500;
                 http_response_code($code);
-                error_log("Hiba történt az adatbázis frissítése során: " . $e->getMessage());
-                echo "Szerver oldali hiba a státusz frissítése során: " . $e->getMessage();
+                error_log("Database update error: " . $e->getMessage());
+                echo "Server error during status update: " . $e->getMessage();
                 exit;
             }
         } else {
             http_response_code(400);
-            echo "Hibás ID vagy státusz érték.";
+            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or status value."]);
             exit;
         }
     }
@@ -289,13 +294,13 @@ class Application
                 exit;
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("Hiba történt a feladat leírásának frissítése során: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Szerver oldali hiba a leírás frissítése során."]);
+                error_log("Error updating task description: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => "Server error during description update."]);
                 exit;
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Hibás ID vagy üres leírás."]);
+            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or empty description."]);
             exit;
         }
     }
@@ -306,17 +311,17 @@ class Application
 
         if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'error' => "Hiba: A Gemini API kulcs nincs beállítva."]);
+            echo json_encode(['success' => false, 'error' => "Error: Gemini API key is not set."]);
             exit;
         }
 
         if (empty($description)) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Hiányzó vagy üres feladatleírás."]);
+            echo json_encode(['success' => false, 'error' => "Error: Task description is missing."]);
             exit;
         }
 
-        $prompt = "A következő feladatot kell megoldani: '{$description}'. Generálj egy **komplett, de nagyon tömör** Java osztályt vagy függvényt a feladat megoldásához. A kód legyen **működőképes**, de csak a szükséges importokat és logikát tartalmazza. Ne generálj hosszú magyarázó kommenteket és bevezető szöveget! A kimenetben használj egyetlen Markdown kódblokkot (```java ... ```).";
+        $prompt = "Generate a **complete, but very concise** Java class or function to solve the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```java ... ```).";
 
         try {
             $rawText = Utils::callGeminiAPI($apiKey, $prompt);
@@ -325,8 +330,8 @@ class Application
             exit;
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Kódgenerálási hiba: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Gemini API hiba: " . $e->getMessage()]);
+            error_log("Code generation error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Gemini API error: " . $e->getMessage()]);
             exit;
         }
     }
@@ -349,7 +354,7 @@ class Application
 
         if (empty($taskId) || empty($code)) {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Hiba: A kód vagy a feladat adatai hiányoznak a commitoláshoz."]);
+            echo json_encode(['success' => false, 'error' => "Error: Task ID or code is missing for the commit."]);
             exit;
         }
 
@@ -379,9 +384,9 @@ class Application
         $rawPrompt = trim($_POST['ai_prompt'] ?? '');
 
         if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-            return "Hiba: A Gemini API kulcs nincs beállítva.";
+            return "Error: Gemini API key is not set.";
         } elseif (empty($rawPrompt)) {
-            return "Hiba: Az AI utasítás (Prompt) mező nem lehet üres!";
+            return "Error: The AI prompt field cannot be empty.";
         }
 
         $prompt = str_replace('{{PROJECT_NAME}}', $projectName, $rawPrompt);
@@ -401,7 +406,7 @@ class Application
                 $taskDescription = $line;
                 $finalStatus = 'SPRINTBACKLOG';
 
-                if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTÁCIÓ|TESZTELÉS|REVIEW|KÉSZ)\]:\s*(.*)/iu', $line, $matches)) {
+                if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*)/iu', $line, $matches)) {
                     $taskDescription = trim($matches[2]);
                     $finalStatus = strtoupper($matches[1]);
                 }
@@ -429,7 +434,30 @@ class Application
             header("Location: " . basename($_SERVER['SCRIPT_NAME']) . "?project=" . urlencode($projectName));
             exit;
         } catch (Exception $e) {
-            return "Hiba történt a Gemini API hívás/mentés során: " . $e->getMessage();
+            return "Error during Gemini API call/save: " . $e->getMessage();
+        }
+    }
+
+    private function handleDecomposeTask($currentProjectName, $apiKey)
+    {
+        $taskId = $_POST['task_id'] ?? null; // Not used in service but kept for consistency if needed later
+        $desc = $_POST['description'] ?? '';
+
+        if (empty($desc) || empty($currentProjectName)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => "Missing description or project."]);
+            exit;
+        }
+
+        try {
+            $count = $this->taskService->decomposeTask($desc, $currentProjectName, $apiKey);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'count' => $count]);
+            exit;
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => "Error: " . $e->getMessage()]);
+            exit;
         }
     }
 }

@@ -25,7 +25,7 @@ class TaskService
             $this->pdo = new PDO('sqlite:' . $dbFile);
             $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         } catch (Exception $e) {
-            throw new DatabaseConnectionException("Hiba az adatbázis inicializálásakor: " . $e->getMessage());
+            throw new DatabaseConnectionException("Error initializing database: " . $e->getMessage());
         }
     }
 
@@ -36,11 +36,28 @@ class TaskService
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_name TEXT NOT NULL,
                 description TEXT NOT NULL,
-                status TEXT NOT NULL CHECK (status IN ('SPRINTBACKLOG','IMPLEMENTÁCIÓ WIP:3', 'TESZTELÉS WIP:2', 'REVIEW WIP:2', 'KÉSZ')),
+                status TEXT NOT NULL CHECK (status IN ('SPRINT BACKLOG','IMPLEMENTATION WIP:3', 'TESTING WIP:2', 'REVIEW WIP:2', 'DONE')),
                 is_important INTEGER DEFAULT 0,
+                is_subtask INTEGER DEFAULT 0,
+                po_comments TEXT DEFAULT NULL,
+                generated_code TEXT DEFAULT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         ");
+
+        // Schema migration for existing tables
+        $columns = $this->pdo->query("PRAGMA table_info(tasks)")->fetchAll(PDO::FETCH_ASSOC);
+        $existingColumns = array_column($columns, 'name');
+
+        if (!in_array('is_subtask', $existingColumns)) {
+            $this->pdo->exec("ALTER TABLE tasks ADD COLUMN is_subtask INTEGER DEFAULT 0");
+        }
+        if (!in_array('po_comments', $existingColumns)) {
+            $this->pdo->exec("ALTER TABLE tasks ADD COLUMN po_comments TEXT DEFAULT NULL");
+        }
+        if (!in_array('generated_code', $existingColumns)) {
+            $this->pdo->exec("ALTER TABLE tasks ADD COLUMN generated_code TEXT DEFAULT NULL");
+        }
     }
 
     public function getProjects(): array
@@ -51,7 +68,7 @@ class TaskService
 
     public function getTasksByProject(string $projectName): array
     {
-        $stmt = $this->pdo->prepare("SELECT id, description, status, is_important FROM tasks WHERE project_name = :projectName ORDER BY id ASC");
+        $stmt = $this->pdo->prepare("SELECT id, description, status, is_important, generated_code, is_subtask, po_comments FROM tasks WHERE project_name = :projectName ORDER BY id ASC");
         $stmt->execute([':projectName' => $projectName]);
         $tasks = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -62,7 +79,7 @@ class TaskService
 
     public function addTask(string $projectName, string $description): int
     {
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, 'SPRINTBACKLOG')");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, 'SPRINT BACKLOG')");
         $stmt->execute([
             ':project_name' => $projectName,
             ':description' => $description
@@ -78,7 +95,7 @@ class TaskService
         $status = $statusStmt->fetchColumn();
 
         if ($status === false) {
-            throw new TaskNotFoundException("Feladat nem található.");
+            throw new TaskNotFoundException("Task not found.");
         }
 
         $stmt = $this->pdo->prepare("DELETE FROM tasks WHERE id = :id");
@@ -118,7 +135,7 @@ class TaskService
             $currentTaskCount = $countStmt->fetchColumn();
 
             if ($currentTaskCount >= $wipLimit) {
-                throw new WipLimitExceededException("WIP Korlát túllépés: A(z) '{$newStatus}' oszlop maximális korlátja {$wipLimit} feladat.", 403);
+                throw new WipLimitExceededException("WIP Limit Exceeded: The limit for '{$newStatus}' column is {$wipLimit} tasks.", 403);
             }
         }
 
@@ -159,5 +176,27 @@ class TaskService
             }
             throw $e;
         }
+    }
+
+    public function decomposeTask(string $description, string $projectName, string $apiKey): int
+    {
+        $prompt = "Decompose this user story into 3-5 concrete, executable technical tasks: '{$description}'.
+                    Your response must ONLY be the list of tasks, with each task on a new line.";
+
+        $rawTasks = Utils::callGeminiAPI($apiKey, $prompt);
+        $lines = explode("\n", $rawTasks);
+        $count = 0;
+
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status, is_subtask, po_comments) VALUES (?, ?, 'SPRINT BACKLOG', 1, ?)");
+
+        $poFeedback = "TAIPO PO: Based on original story: \"{$description}\"";
+
+        foreach ($lines as $line) {
+            if (trim($line)) {
+                $stmt->execute([$projectName, trim($line), $poFeedback]);
+                $count++;
+            }
+        }
+        return $count;
     }
 }

@@ -24,11 +24,11 @@ class GitHubService
     public function commitFile(string $filePath, string $content, string $message, string $branch = 'main'): array
     {
         if (empty($this->token)) {
-            throw new GitHubAuthenticationException("A commitoláshoz be kell jelentkezni GitHub token (PAT) megadásával! (Hiányzó token)", 401);
+            throw new GitHubAuthenticationException("To commit, you must log in with your GitHub token (PAT)! (Missing token)", 401);
         }
 
         if (empty($this->username) || empty($this->repo)) {
-            throw new GitHubConfigurationException("Hiányzó GitHub konfiguráció (GITHUB_REPO, GITHUB_USERNAME). Kérlek, állítsd be a szerveren!", 500);
+            throw new GitHubConfigurationException("Invalid GitHub configuration (GITHUB_REPO, GITHUB_USERNAME)", 500);
         }
 
         $url = "https://api.github.com/repos/{$this->username}/{$this->repo}/contents/{$filePath}";
@@ -58,9 +58,9 @@ class GitHubService
         if ($httpCode === 201) {
             return ['success' => true, 'filePath' => $filePath];
         } elseif ($httpCode === 422 && strpos($result['message'] ?? '', 'sha') !== false) {
-            throw new GitHubFileExistsException("A fájl már létezik a GitHubon: '{$filePath}'. Töröld/nevezd át a frissítéshez.", 409);
+            throw new GitHubFileExistsException("File already exists on GitHub: '{$filePath}'. Delete or rename the file to update.", 409);
         } else {
-            throw new GitHubApiException("GitHub API hiba ({$httpCode}): " . ($result['message'] ?? 'Ismeretlen hiba.'), $httpCode);
+            throw new GitHubApiException("GitHub API error ({$httpCode}): " . ($result['message'] ?? 'Unknown error.'), $httpCode);
         }
     }
 }

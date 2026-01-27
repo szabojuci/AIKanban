@@ -3,6 +3,7 @@
 namespace App;
 
 use App\Exception\GeminiApiException;
+use App\Config;
 use Exception;
 
 class Utils
@@ -51,7 +52,7 @@ class Utils
         if (preg_match_all('/```(\w*)\n(.*?)```/s', $markdown, $matches)) {
             $output = '';
             foreach ($matches[2] as $index => $code) {
-                $language = $matches[1][$index] ?: 'Kód';
+                $language = $matches[1][$index] ?: 'Code';
 
                 $taskId = $_POST['task_id'] ?? '';
                 $description = htmlspecialchars($_POST['description'] ?? '');
@@ -65,7 +66,7 @@ class Utils
                 $output .= '<span class="header-actions">';
 
                 if (!empty($taskId) && $isUserLoggedIn) {
-                    $output .= '<button class="github-commit-button-inline" title="Commit a GitHubra"
+                    $output .= '<button class="github-commit-button-inline" title="Commit to GitHub"
                                 data-task-id="' . $taskId . '"
                                 data-description="' . $description . '"
                                 onclick="commitJavaCodeToGitHubInline(this)">
@@ -75,7 +76,7 @@ class Utils
                             </button>';
                 }
 
-                $output .= '<button class="copy-icon" title="Kód másolása" onclick="copyCodeBlock(this)">📋</button>';
+                $output .= '<button class="copy-icon" title="Copy Code" onclick="copyCodeBlock(this)">📋</button>';
                 $output .= '</span>';
 
                 $output .= '</div>';
@@ -87,9 +88,9 @@ class Utils
         return '<pre>' . htmlspecialchars($markdown) . '</pre>';
     }
 
-    public static function callGeminiAPI($prompt)
+    public static function callGeminiAPI($apiKey, $prompt)
     {
-        $url = $_ENV['LLM_URL'];
+        $url = $_ENV['LLM_URL'] . '?key=' . $apiKey;
 
         $data = [
             'contents' => [
@@ -121,19 +122,19 @@ class Utils
         $curlError = curl_error($ch);
 
         if ($response === false) {
-            throw new GeminiApiException("cURL hiba: " . $curlError);
+            throw new GeminiApiException("cURL error: " . $curlError);
         }
 
         $result = json_decode($response, true);
 
         if ($httpCode !== 200) {
-            $errorMessage = $result['error']['message'] ?? 'Ismeretlen hiba';
-            throw new GeminiApiException("API hiba ({$httpCode}): " . $errorMessage . " - Válasz: " . $response);
+            $errorMessage = $result['error']['message'] ?? 'Unknown error';
+            throw new GeminiApiException("API error ({$httpCode}): " . $errorMessage . " - Response: " . $response);
         }
 
         if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            $blockReason = $result['candidates'][0]['finishReason'] ?? 'ismeretlen';
-            throw new GeminiApiException("API válasz formátuma hibás (vagy blokkolva lett). Ok: " . $blockReason . ". Válasz: " . substr($response, 0, 500));
+            $blockReason = $result['candidates'][0]['finishReason'] ?? 'unknown';
+            throw new GeminiApiException("API response format error (or blocked). Reason: " . $blockReason . ". Response: " . substr($response, 0, 500));
         }
 
         return $result['candidates'][0]['content']['parts'][0]['text'];
