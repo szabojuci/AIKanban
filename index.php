@@ -22,10 +22,7 @@ function loadEnv($filePath = '.env')
 }
 loadEnv();
 
-if (
-    $_SERVER['REQUEST_METHOD'] === 'POST' &&
-    (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false)
-) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
     $json_data = file_get_contents('php://input');
     $_POST = array_merge($_POST, json_decode($json_data, true) ?? []);
 }
@@ -34,18 +31,18 @@ $apiKey = $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY');
 $dbFile = 'kanban.sqlite';
 
 $columns = [
-    'SPRINTBACKLOG' => 'info',
-    'IMPLEMENTÁCIÓ WIP:3' => 'danger',
-    'TESZTELÉS WIP:2' => 'warning',
+    'SPRINT BACKLOG' => 'info',
+    'IMPLEMENTATION WIP:3' => 'danger',
+    'TESTING WIP:2' => 'warning',
     'REVIEW WIP:2' => 'primary',
-    'KÉSZ' => 'success',
+    'DONE' => 'success',
 ];
 $kanbanTasks = [
-    'SPRINTBACKLOG' => [],
-    'IMPLEMENTÁCIÓ WIP:3' => [],
-    'TESZTELÉS WIP:2' => [],
+    'SPRINT BACKLOG' => [],
+    'IMPLEMENTATION WIP:3' => [],
+    'TESTING WIP:2' => [],
     'REVIEW WIP:2' => [],
-    'KÉSZ' => [],
+    'DONE' => [],
 ];
 
 $projectName = trim($_POST['project_name'] ?? '');
@@ -67,9 +64,12 @@ try {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             project_name TEXT NOT NULL,
             description TEXT NOT NULL,
-            status TEXT NOT NULL CHECK (status IN ('SPRINTBACKLOG','IMPLEMENTÁCIÓ WIP:3', 'TESZTELÉS WIP:2', 'REVIEW WIP:2', 'KÉSZ')),
+            status TEXT NOT NULL CHECK (status IN ('SPRINT BACKLOG','IMPLEMENTATION WIP:3', 'TESTING WIP:2', 'REVIEW WIP:2', 'DONE')),
             is_important INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            generated_code TEXT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            po_comments TEXT DEFAULT NULL,
+            is_subtask INTEGER DEFAULT 0
         );
     ");
 
@@ -81,7 +81,7 @@ try {
     }
 
 } catch (Exception $e) {
-    $error = "Hiba az adatbázis inicializálásakor: " . $e->getMessage();
+    $error = "Error initializing database: " . $e->getMessage();
 }
 
 if ($error) {
@@ -108,40 +108,31 @@ function formatCodeBlocks($markdown)
     if (preg_match_all('/```(\w*)\n(.*?)```/s', $markdown, $matches)) {
         $output = '';
         foreach ($matches[2] as $index => $code) {
-            $language = $matches[1][$index] ?: 'Kód';
-
+            $language = $matches[1][$index] ?: 'java';
             $taskId = $_POST['task_id'] ?? '';
             $description = htmlspecialchars($_POST['description'] ?? '');
 
-            $isUserLoggedIn = !empty($_POST['user_token']);
-
             $output .= '<div class="code-block-wrapper">';
-            $output .= '<div class="code-language-header">';
-            $output .= '<span>' . htmlspecialchars(ucfirst($language)) . '</span>';
+            $output .= '<div class="code-language-header"><span>' . htmlspecialchars(ucfirst($language)) . '</span><span class="header-actions">';
 
-            $output .= '<span class="header-actions">';
-
-            if (!empty($taskId) && $isUserLoggedIn) {
-                $output .= '<button class="github-commit-button-inline" title="Commit a GitHubra" 
+            if (!empty($taskId)) {
+                $output .= '<button class="github-commit-button-inline" title="Commit to GitHub" 
                             data-task-id="' . $taskId . '" 
                             data-description="' . $description . '" 
                             onclick="commitJavaCodeToGitHubInline(this)">
-                            <svg height="16" aria-hidden="true" viewBox="0 0 16 16" version="1.1" width="16" style="fill: currentColor; vertical-align: middle;">
+                            <svg height="16" viewBox="0 0 16 16" width="16" style="fill: currentColor; vertical-align: middle;">
                                 <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
                             </svg>
                         </button>';
             }
 
-            $output .= '<button class="copy-icon" title="Kód másolása" onclick="copyCodeBlock(this)">📋</button>';
-            $output .= '</span>';
-
-            $output .= '</div>';
-            $output .= '<pre><code class="language-' . htmlspecialchars($language) . '">' . htmlspecialchars($code) . '</code></pre>';
+            $output .= '<button class="copy-icon" title="Copy code" onclick="copyCodeBlock(this)">📋</button></span></div>';
+            $output .= '<pre><code id="editable-java-code" contenteditable="true" class="language-' . htmlspecialchars($language) . '" spellcheck="false">' . htmlspecialchars($code) . '</code></pre>';
             $output .= '</div>';
         }
         return $output;
     }
-    return '<pre>' . htmlspecialchars($markdown) . '</pre>';
+    return '<div class="code-block-wrapper"><div class="code-language-header"><span>Java</span><span class="header-actions"><button class="copy-icon" onclick="copyCodeBlock(this)">📋</button></span></div><pre><code id="editable-java-code" contenteditable="true" spellcheck="false">' . htmlspecialchars($markdown) . '</code></pre></div>';
 }
 function callGeminiAPI($apiKey, $prompt)
 {
@@ -179,19 +170,19 @@ function callGeminiAPI($apiKey, $prompt)
     curl_close($ch);
 
     if ($response === false) {
-        throw new Exception("cURL hiba: " . $curlError);
+        throw new Exception("cURL error: " . $curlError);
     }
 
     $result = json_decode($response, true);
 
     if ($httpCode !== 200) {
-        $errorMessage = $result['error']['message'] ?? 'Ismeretlen hiba';
-        throw new Exception("API hiba ({$httpCode}): " . $errorMessage . " - Válasz: " . $response);
+        $errorMessage = $result['error']['message'] ?? 'Unknown error';
+        throw new Exception("API error ({$httpCode}): " . $errorMessage . " - Response: " . $response);
     }
 
     if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-        $blockReason = $result['candidates'][0]['finishReason'] ?? 'ismeretlen';
-        throw new Exception("API válasz formátuma hibás (vagy blokkolva lett). Ok: " . $blockReason . ". Válasz: " . substr($response, 0, 500));
+        $blockReason = $result['candidates'][0]['finishReason'] ?? 'unknown';
+        throw new Exception("API response format error (or blocked). Reason: " . $blockReason . ". Response: " . substr($response, 0, 500));
     }
 
     return $result['candidates'][0]['content']['parts'][0]['text'];
@@ -203,7 +194,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_task') {
 
     if (!empty($newTaskDescription) && !empty($projectForAdd)) {
         try {
-            $insertStmt = $db->prepare("INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, 'SPRINTBACKLOG')");
+            $insertStmt = $db->prepare("INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, 'SPRINT BACKLOG')");
             $insertStmt->execute([
                 ':project_name' => $projectForAdd,
                 ':description' => $newTaskDescription
@@ -215,13 +206,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'add_task') {
             exit;
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Hiba történt a feladat hozzáadása során: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Szerver oldali hiba: " . $e->getMessage()]);
+            error_log("Error adding task: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Server error: " . $e->getMessage()]);
             exit;
         }
     } else {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "A projekt nevének és a feladat leírásának is szerepelnie kell."]);
+        echo json_encode(['success' => false, 'error' => "Project name and task description are required."]);
         exit;
     }
 }
@@ -244,13 +235,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'delete_task') {
             exit;
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Hiba történt a feladat törlése során: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Szerver oldali hiba a törlés során."]);
+            error_log("Error deleting task: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Server error during deletion."]);
             exit;
         }
     } else {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Hibás ID a törléshez."]);
+        echo json_encode(['success' => false, 'error' => "Invalid ID for deletion."]);
         exit;
     }
 }
@@ -273,13 +264,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'toggle_importance') {
 
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Hiba a fontosság frissítése során: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Szerver oldali hiba."]);
+            error_log("Error updating importance: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Server error."]);
             exit;
         }
     } else {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Hibás ID."]);
+        echo json_encode(['success' => false, 'error' => "Invalid ID."]);
         exit;
     }
 }
@@ -306,13 +297,13 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status') {
                 if ($currentTaskCount >= $wipLimit) {
                     http_response_code(403);
                     header('Content-Type: application/json');
-                    echo json_encode(['success' => false, 'error' => "WIP Korlát túllépés: A(z) '{$newStatus}' oszlop maximális korlátja {$wipLimit} feladat."]);
+                    echo json_encode(['success' => false, 'error' => "WIP Limit exceeded: The '{$newStatus}' column has a maximum limit of {$wipLimit} tasks."]);
                     exit;
                 }
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("WIP ellenőrzési hiba: " . $e->getMessage());
-                echo "Szerver oldali hiba a WIP ellenőrzése során: " . $e->getMessage();
+                error_log("WIP check error: " . $e->getMessage());
+                echo "Server error during WIP check: " . $e->getMessage();
                 exit;
             }
         }
@@ -323,19 +314,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status') {
                 ':id' => $taskId
             ]);
 
-            echo "Sikeres frissítés: ID {$taskId}, új státusz: {$newStatus}";
+            echo "Update successful: ID {$taskId}, new status: {$newStatus}";
             http_response_code(200);
             exit;
 
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Hiba történt az adatbázis frissítése során: " . $e->getMessage());
-            echo "Szerver oldali hiba a státusz frissítése során.";
+            error_log("Database update error: " . $e->getMessage());
+            echo "Server error during status update.";
             exit;
         }
     } else {
         http_response_code(400);
-        echo "Hibás ID vagy státusz érték.";
+        echo "Invalid ID or status value.";
         exit;
     }
 }
@@ -359,126 +350,174 @@ if (isset($_POST['action']) && $_POST['action'] === 'edit_task') {
 
         } catch (Exception $e) {
             http_response_code(500);
-            error_log("Hiba történt a feladat leírásának frissítése során: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Szerver oldali hiba a leírás frissítése során."]);
+            error_log("Error updating task description: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Server error during description update."]);
             exit;
         }
     } else {
         http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Hibás ID vagy üres leírás."]);
+        echo json_encode(['success' => false, 'error' => "Invalid ID or empty description."]);
         exit;
     }
 }
 
 if (isset($_POST['action']) && $_POST['action'] === 'generate_java_code') {
-
+    $taskId = $_POST['task_id'] ?? null;
     $description = trim($_POST['description'] ?? '');
 
-    if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => "Hiba: A Gemini API kulcs nincs beállítva."]);
+    if (!$taskId) {
+        echo json_encode(['success' => false, 'error' => "Missing Task ID"]);
         exit;
     }
 
-    if (empty($description)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Hiányzó vagy üres feladatleírás."]);
+    $stmtCheck = $db->prepare("SELECT generated_code FROM tasks WHERE id = :id");
+    $stmtCheck->execute([':id' => $taskId]);
+    $savedCode = $stmtCheck->fetchColumn();
+
+    if (!empty($savedCode)) {
+        echo json_encode(['success' => true, 'code' => formatCodeBlocks($savedCode), 'cached' => true]);
         exit;
     }
 
-    $prompt = "A következő feladatot kell megoldani: '{$description}'. Generálj egy **komplett, de nagyon tömör** Java osztályt vagy függvényt a feladat megoldásához. A kód legyen **működőképes**, de csak a szükséges importokat és logikát tartalmazza. Ne generálj hosszú magyarázó kommenteket és bevezető szöveget! A kimenetben használj egyetlen Markdown kódblokkot (```java ... ```).";
+    $stmtCtx = $db->prepare("SELECT description FROM tasks WHERE project_name = :projectName");
+    $stmtCtx->execute([':projectName' => $currentProjectName]);
+    $allTasks = $stmtCtx->fetchAll(PDO::FETCH_COLUMN);
+    $contextTasks = implode(", ", $allTasks);
 
+    $prompt = "You are an expert Java developer. Your goal is to implement a sub-task for the project: '{$currentProjectName}'.
+    The entire project consists of these tasks: [{$contextTasks}].
+    Current task to implement: '{$description}'.
+
+    Instructions:
+    1. Use the package name: 'com.ai.project'.
+    2. If this task implies a main entry point, name the class 'Main'.
+    3. Otherwise, use a clear, logical class name based on the task (e.g., 'SnakeGame', 'Grid').
+    4. Ensure variables and method names are consistent across tasks.
+    5. Provide ONLY the complete Java code in a single Markdown block.
+    6. The code must be production-ready and compileable within this project context.";
     try {
         $rawText = callGeminiAPI($apiKey, $prompt);
+        $updateStmt = $db->prepare("UPDATE tasks SET generated_code = :code WHERE id = :id");
+        $updateStmt->execute([':code' => $rawText, ':id' => $taskId]);
 
         header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'code' => formatCodeBlocks($rawText)]);
+        echo json_encode(['success' => true, 'code' => formatCodeBlocks($rawText), 'cached' => false]);
         exit;
-
     } catch (Exception $e) {
         http_response_code(500);
-        error_log("Kódgenerálási hiba: " . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => "Gemini API hiba: " . $e->getMessage()]);
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         exit;
     }
 }
 
 if (isset($_POST['action']) && $_POST['action'] === 'commit_to_github') {
     $taskId = $_POST['task_id'] ?? null;
-    $description = $_POST['description'] ?? null;
+    $description = $_POST['description'] ?? '';
     $code = $_POST['code'] ?? null;
 
     $userToken = $_POST['user_token'] ?? null;
     $userUsername = $_POST['user_username'] ?? null;
+    $userRepo = $_POST['user_repo'] ?? null;
 
     $githubToken = $userToken ?: ($_ENV['GITHUB_TOKEN'] ?? getenv('GITHUB_TOKEN'));
     $githubUsername = $userUsername ?: ($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'));
-    $githubRepo = $_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO');
+    $githubRepo = $userRepo ?: ($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO'));
 
-    if (empty($githubToken)) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'error' => "A commitoláshoz be kell jelentkezni GitHub token (PAT) megadásával! (Hiányzó token)"]);
-        exit;
-    }
-
-    if (empty($githubUsername) || empty($githubRepo)) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => "Hiányzó GitHub konfiguráció (.env: GITHUB_REPO, GITHUB_USERNAME). Kérlek, állítsd be a szerveren!"]);
+    if (empty($githubToken) || empty($githubUsername) || empty($githubRepo)) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => "Missing GitHub credentials."]);
         exit;
     }
 
     if (empty($taskId) || empty($code)) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => "Hiba: A kód vagy a feladat adatai hiányoznak a commitoláshoz."]);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => "Code or task ID missing."]);
         exit;
     }
 
-    $safeDescription = preg_replace('/[^a-zA-Z0-9\s]/', '', $description);
-    $safeDescription = trim(substr($safeDescription, 0, 50));
-    $fileName = 'Task_' . $taskId . '_' . str_replace(' ', '_', $safeDescription) . '.java';
-    $filePath = 'src/main/java/' . $fileName;
+    $fileName = "Task_" . $taskId . ".java";
+    if (preg_match('/public class\s+(\w+)/', $code, $matches)) {
+        $fileName = $matches[1] . ".java";
+    }
 
-    $encodedContent = base64_encode($code);
-    $commitMessage = "feat: Adds task implementation for: " . substr($description, 0, 70) . '...';
-
+    $filePath = 'src/main/java/com/ai/project/' . $fileName;
     $url = "https://api.github.com/repos/{$githubUsername}/{$githubRepo}/contents/{$filePath}";
 
-    $payload = json_encode([
+    $ch_get = curl_init($url);
+    curl_setopt($ch_get, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch_get, CURLOPT_HTTPHEADER, [
+        'Authorization: token ' . $githubToken,
+        'User-Agent: AI-Kanban-App'
+    ]);
+    $get_response = curl_exec($ch_get);
+    $get_data = json_decode($get_response, true);
+    $sha = isset($get_data['sha']) ? $get_data['sha'] : null;
+    curl_close($ch_get);
+
+    $encodedContent = base64_encode($code);
+    $commitMessage = ($sha ? "fix: Update" : "feat: Add") . " implementation for task: " . substr($description, 0, 50);
+
+    $payload = [
         'message' => $commitMessage,
         'content' => $encodedContent,
         'branch' => 'main'
-    ]);
+    ];
+
+    if ($sha) {
+        $payload['sha'] = $sha;
+    }
 
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Authorization: token ' . $githubToken,
-        'Content-Type: application/json',
-        'User-Agent: AI-Kanban-App'
+        'User-Agent: AI-Kanban-App',
+        'Content-Type: application/json'
     ]);
 
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $result = json_decode($response, true);
-
-    if ($httpCode === 201) {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => true, 'filePath' => $filePath]);
-        exit;
-    } elseif ($httpCode === 422 && strpos($result['message'] ?? '', 'sha') !== false) {
-        http_response_code(409);
-        echo json_encode(['success' => false, 'error' => "A fájl már létezik a GitHubon: '{$filePath}'. Töröld/nevezd át a frissítéshez."]);
-        exit;
+    header('Content-Type: application/json');
+    if ($httpCode === 200 || $httpCode === 201) {
+        echo json_encode(['success' => true, 'filePath' => $filePath, 'method' => $sha ? 'updated' : 'created']);
     } else {
-        http_response_code($httpCode > 0 ? $httpCode : 500);
-        error_log("GitHub commit hiba: HTTP {$httpCode}. Válasz: " . $response);
-        echo json_encode(['success' => false, 'error' => "GitHub API hiba ({$httpCode}): " . ($result['message'] ?? 'Ismeretlen hiba.')]);
-        exit;
+        $githubError = json_decode($response, true);
+        echo json_encode([
+            'success' => false,
+            'error' => "GitHub API error ($httpCode): " . ($githubError['message'] ?? 'Unknown error')
+        ]);
     }
+    exit;
+}
+
+if (isset($_POST['action']) && $_POST['action'] === 'decompose_task') {
+    $taskId = $_POST['task_id'];
+    $desc = $_POST['description'];
+    $proj = $_POST['current_project'];
+
+    $prompt = "Decompose this user story into 3-5 concrete, executable technical tasks: '{$desc}'. 
+               Your response must ONLY be the list of tasks, with each task on a new line.";
+
+    $rawTasks = callGeminiAPI($apiKey, $prompt);
+    $lines = explode("\n", $rawTasks);
+    $count = 0;
+    
+    foreach ($lines as $line) {
+        if (trim($line)) {
+            $stmt = $db->prepare("INSERT INTO tasks (project_name, description, status, is_subtask, po_comments) VALUES (?, ?, 'SPRINT BACKLOG', 1, ?)");
+            
+            $poFeedback = "TAIPO PO: Based on original story: \"{$desc}\"";
+            
+            $stmt->execute([$proj, trim($line), $poFeedback]);
+            $count++;
+        }
+    }
+    echo json_encode(['success' => true, 'count' => $count]);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_POST['action'])) {
@@ -486,9 +525,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_PO
     $rawPrompt = trim($_POST['ai_prompt'] ?? '');
 
     if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-        $error = "Hiba: A Gemini API kulcs nincs beállítva.";
+        $error = "Error: Gemini API key is not set.";
     } elseif (empty($rawPrompt)) {
-        $error = "Hiba: Az AI utasítás (Prompt) mező nem lehet üres!";
+        $error = "Error: The AI prompt field cannot be empty!";
     }
 
     if (!$error) {
@@ -515,11 +554,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_PO
                     continue;
 
                 $taskDescription = $line;
-                $finalStatus = 'SPRINTBACKLOG';
+                $finalStatus = 'SPRINT BACKLOG';
 
-                if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTÁCIÓ|TESZTELÉS|REVIEW|KÉSZ)\]:\s*(.*)/iu', $line, $matches)) {
+                if (preg_match('/^\[(SPRINT BACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*)/iu', $line, $matches)) {
                     $taskDescription = trim($matches[2]);
                     $finalStatus = strtoupper($matches[1]);
+                    if ($finalStatus == 'IMPLEMENTATION')
+                        $finalStatus = 'IMPLEMENTATION WIP:3';
+                    if ($finalStatus == 'TESTING')
+                        $finalStatus = 'TESTING WIP:2';
+                    if ($finalStatus == 'REVIEW')
+                        $finalStatus = 'REVIEW WIP:2';
                 }
 
                 if (!empty($taskDescription) && strlen($taskDescription) > 5) {
@@ -534,17 +579,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_PO
 
             $db->commit();
 
+
             if ($tasksAdded < 5) {
-                $error = "Figyelem: Csak {$tasksAdded} feladatot sikerült generálni. Lehet, hogy a válasz formátuma nem megfelelő.";
+                $error = "Warning: Only {$tasksAdded} tasks were generated...";
             }
-            header("Location: index.php?project=" . urlencode($projectName));
+            header("Location: index.php?project=" . urlencode($projectName) . "&generated=1");
             exit;
 
         } catch (Exception $e) {
             if ($db->inTransaction()) {
                 $db->rollBack();
             }
-            $error = "Hiba történt a Gemini API hívás/mentés során: " . $e->getMessage();
+            $error = "Error during Gemini API call/save: " . $e->getMessage();
         }
     }
 }
@@ -552,77 +598,79 @@ skip_post_handlers:
 
 if ($db && !empty($currentProjectName) && !$error) {
     try {
-        $stmt = $db->prepare("SELECT id, description, status, is_important FROM tasks WHERE project_name = :projectName ORDER BY id ASC");
+        $stmt = $db->prepare("SELECT id, description, status, is_important, generated_code, po_comments, is_subtask FROM tasks WHERE project_name = :projectName ORDER BY id ASC");
         $stmt->execute([':projectName' => $currentProjectName]);
 
-        $kanbanTasks = ['SPRINTBACKLOG' => [], 'IMPLEMENTÁCIÓ WIP:3' => [], 'TESZTELÉS WIP:2' => [], 'REVIEW WIP:2' => [], 'KÉSZ' => [],];
+        $kanbanTasks = ['SPRINT BACKLOG' => [], 'IMPLEMENTATION WIP:3' => [], 'TESTING WIP:2' => [], 'REVIEW WIP:2' => [], 'DONE' => [],];
 
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             if (isset($kanbanTasks[$row['status']])) {
                 $kanbanTasks[$row['status']][] = [
                     'id' => $row['id'],
                     'description' => $row['description'],
-                    'is_important' => $row['is_important']
+                    'is_important' => $row['is_important'],
+                    'has_code' => !empty($row['generated_code']),
+                    'po_comments' => $row['po_comments'],
+                    'is_subtask' => $row['is_subtask']
                 ];
             }
         }
     } catch (Exception $e) {
-        $error = "Hiba történt az adatok olvasása során: " . $e->getMessage();
+        $error = "Error reading data: " . $e->getMessage();
     }
 }
 
 $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !empty($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'));
 ?>
 <!DOCTYPE html>
-<html lang="hu">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-vezérelt Kanban</title>
+    <title>AI-Driven Kanban</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
     <div class="project-menu-container">
-        <button class="menu-toggle-button menu-icon" onclick="toggleMenu()" title="Projekt beállítások">
+        <button class="menu-toggle-button menu-icon" onclick="toggleMenu()" title="Project Settings">
             ☰
         </button>
 
         <div class="project-menu-dropdown" id="projectDropdown">
-            <button type="button" class="menu-close-button" onclick="toggleMenu()" title="Menü bezárása">x</button>
+            <button type="button" class="menu-close-button" onclick="toggleMenu()" title="Close menu">x</button>
             <form method="POST" action="index.php" id="projectForm" class="menu-form">
-                <p class="menu-label">Milyen projekthez szeretnél feladatokat generálni?</p>
+                <p class="menu-label">What project would you like to generate tasks for?</p>
 
                 <div class="input-group generate-group">
-                    <input type="text" id="project_name" name="project_name" placeholder="Pl. 'E-commerce weboldal'"
+                    <input type="text" id="project_name" name="project_name" placeholder="e.g. 'E-commerce website'"
                         value="<?php echo htmlspecialchars($currentProjectName ?? ''); ?>" required>
                     <button type="submit" class="submit-button" id="generateButton"
-                        title="A generálás felülírja a már létező feladatokat ezen a projekten!">
-                        Generálás AI-val
+                        title="Generating will overwrite existing tasks for this project!">
+                        Generate with AI
                     </button>
 
                 </div>
 
-                <p class="menu-label" style="margin-top: 15px;">AI utasítás:
-                    <button type="button" class="help-button" onclick="loadDefaultPrompt()"
-                        title="Alapértelmezett prompt betöltése">
+                <p class="menu-label" style="margin-top: 15px;">AI Instruction (Prompt):
+                    <button type="button" class="help-button" onclick="loadDefaultPrompt()" title="Load default prompt">
                         ❓
                     </button>
                 </p>
 
                 <?php
-                $defaultPrompt = "Tervezz meg egy {{PROJECT_NAME}} nevű projektet! Generálj legalább 10 feladatot a Kanban táblához, amelyek a fejlesztés alapvető lépéseit fedik le. Minden feladatot külön sorban, minden előtag nélkül (pl. [SPRINTBACKLOG]:) adj meg, hogy mindegyik feladat a **SPRINTBACKLOG** oszlopba kerüljön. Az első magyarázó elem nélkül."; ?>
+                $defaultPrompt = "Plan a project named {{PROJECT_NAME}}! Generate at least 10 tasks for the Kanban board covering basic development steps. Provide each task on a new line without any prefix (e.g. [SPRINT BACKLOG]:) so they all go into the **SPRINT BACKLOG** column. Do not include introductory text."; ?>
                 <textarea id="ai_prompt" name="ai_prompt" rows="5" class="prompt-textarea" required
-                    placeholder="AI utasítás (Prompt)..."
+                    placeholder="AI prompt..."
                     data-default-prompt="<?php echo htmlspecialchars($defaultPrompt); ?>"></textarea>
                 <?php if (!empty($existingProjects)): ?>
-                    <p class="menu-label" style="margin-top: 15px;">Vagy válassz egy meglévő projektet:
+                    <p class="menu-label" style="margin-top: 15px;">Or choose an existing project:
                     </p>
                     <select id="project_selector" onchange="loadProject(this.value)" class="project-select-dropdown">
 
-                        <option value="" <?php echo empty($currentProjectName) ? 'selected' : ''; ?>>-- Projekt betöltése --
+                        <option value="" <?php echo empty($currentProjectName) ? 'selected' : ''; ?>>-- Load Project --
                         </option>
                         <?php foreach ($existingProjects as $proj): ?>
                             <option value="<?php echo urlencode($proj); ?>" <?php echo ($proj === $currentProjectName) ? 'selected' : ''; ?>>
@@ -637,48 +685,43 @@ $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !
                 </button>
 
             </form>
-
         </div>
-
     </div>
-    </div>
-
 
     <div class="header-bar">
         <div style="width: 48px;"></div>
         <div class="header-title-container">
-            <h1>🤖 AI-vezérelt Kanban</h1>
+            <h1>🤖 AI-Driven Kanban</h1>
         </div>
 
-        <div class="mode-toggle" id="mode-toggle-icon" title="Váltás sötét módra">
+        <div class="mode-toggle" id="mode-toggle-icon" title="Switch to Dark Mode">
             🌙
         </div>
     </div>
 
-
     <div class="content-wrapper">
         <?php if (isset($currentProjectName) && $currentProjectName): ?>
             <div class="project-status-info">
-                Aktuális Projekt: <strong><?php echo htmlspecialchars($currentProjectName); ?></strong>
+                Current Project: <strong><?php echo htmlspecialchars($currentProjectName); ?></strong>
             </div>
         <?php else: ?>
             <div class="project-status-info" style="font-style: italic; color: #6c757d; padding: 5px;">
-                Generálj egy projektet a menüben!
+                Generate a project in the menu!
             </div>
         <?php endif; ?>
 
         <div class="message-container">
             <?php if (isset($error)): ?>
                 <div class="error-box">
-                    ❌ Hiba:<?php echo htmlspecialchars($error); ?>
+                    ❌ Error: <?php echo htmlspecialchars($error); ?>
                 </div>
-            <?php elseif (isset($tasksAdded) && $tasksAdded < 5 && $tasksAdded > 0): ?>
-                <div class="warning-box">
-                    ⚠️ Figyelem: Csak <?php echo $tasksAdded; ?> feladatot sikerült generálni.
-                </div>
-            <?php elseif (isset($currentProjectName) && $currentProjectName && empty($error) && (!isset($_POST['action']) || $_POST['action'] !== 'add_task')): ?>
+            <?php elseif (isset($tasksAdded) && $tasksAdded > 0): ?>
                 <div class="success-box" id="global-message-box">
-                    ✅ Feladatok sikeresen betöltve a(z) "<?php echo htmlspecialchars($currentProjectName); ?>" projekthez!
+                    ✅ Tasks successfully generated for project "<?php echo htmlspecialchars($currentProjectName); ?>"!
+                </div>
+            <?php elseif (isset($_GET['generated']) && $_GET['generated'] === '1'): ?>
+                <div class="success-box" id="global-message-box">
+                    ✅ Tasks successfully generated for project "<?php echo htmlspecialchars($currentProjectName); ?>"!
                 </div>
             <?php endif; ?>
         </div>
@@ -691,16 +734,18 @@ $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !
                         <?php echo htmlspecialchars($title); ?> (<span class="task-count"
                             id="count-<?php echo createSafeId($title); ?>"><?php echo count($kanbanTasks[$title] ?? []); ?></span>)
                     </div>
+                    <?php
+                    $isBacklogColumn = (strpos(strtoupper($title), 'BACKLOG') !== false);
 
-                    <?php if ($title === 'SPRINTBACKLOG' && isset($currentProjectName) && $currentProjectName): ?>
-                        <button class="add-task-icon-only" id="addTaskToggle" onclick="toggleTaskInput()"
-                            title="Új feladat hozzáadása">
+                    if ($isBacklogColumn && isset($currentProjectName) && !empty($currentProjectName)):
+                        ?>
+                        <button class="add-task-icon-only" id="addTaskToggle" onclick="toggleTaskInput()" title="Add new task">
                             ➕
                         </button>
                         <div class="add-task-input-form" id="addTaskInputForm" style="display: none;">
-                            <input type="text" id="inline_task_description" placeholder="Feladat leírása" required>
+                            <input type="text" id="inline_task_description" placeholder="Task description" required>
                             <button type="button" class="submit-button add-task-submit" onclick="addTask(true)">
-                                Hozzáadás
+                                Add
                             </button>
                         </div>
                     <?php endif; ?>
@@ -711,35 +756,54 @@ $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !
 
                         if ($hasTasks) {
                             foreach ($kanbanTasks[$title] as $task) {
+                                $isSubtask = (isset($task['is_subtask']) && (int) $task['is_subtask'] === 1);
+                                $isSubtaskClass = $isSubtask ? ' is-subtask' : '';
+                                $poComments = $task['po_comments'] ?? '';
                                 $safeDescription = htmlspecialchars(addslashes($task['description']));
-                                $isImportant = (int) $task['is_important'];
+                                $isImportant = (int) ($task['is_important'] ?? 0);
+                                $hasCodeClass = (!empty($task['has_code'])) ? ' has-ai-code' : '';
 
-                                echo '<div class="task-card' . ($isImportant ? ' is-important' : '') . '" draggable="true" ondragstart="drag(event)" id="task-' . htmlspecialchars($task['id']) . '">';
+                                echo '<div class="task-card' . ($isImportant ? ' is-important' : '') . $hasCodeClass . $isSubtaskClass . '" draggable="true" ondragstart="drag(event)" id="task-' . htmlspecialchars($task['id']) . '" data-current-status="' . htmlspecialchars($title) . '">';
 
-                                echo '<button class="importance-toggle" onclick="toggleImportance(' . htmlspecialchars($task['id']) . ')" data-is-important="' . $isImportant . '" title="Fontosság beállítása">';
+                                if (!empty($task['has_code'])) {
+                                    echo '<div class="ai-code-indicator" title="AI code already generated">🤖</div>';
+                                }
+
+                                echo '<button class="importance-toggle" onclick="toggleImportance(' . htmlspecialchars($task['id']) . ')" data-is-important="' . $isImportant . '" title="Set importance">';
                                 echo ($isImportant ? '⭐' : '☆');
                                 echo '</button>';
 
                                 echo '<div class="task-menu-group">';
-
-                                echo '<button class="task-menu-toggle" title="Beállítások" onclick="toggleTaskMenu(' . htmlspecialchars($task['id']) . ', this)">⋮</button>';
-
+                                echo '<button class="task-menu-toggle" title="Settings" onclick="toggleTaskMenu(' . htmlspecialchars($task['id']) . ', this)">⋮</button>';
                                 echo '<div id="task-menu-' . htmlspecialchars($task['id']) . '" class="task-actions-menu">';
-                                echo '<button class="menu-action-button" title="Feladat szerkesztése" onclick="toggleEdit(' . htmlspecialchars($task['id']) . ', event)">✏️ Szerkesztés</button>';
-                                echo '<button class="menu-action-button" title="Java Kód generálása" onclick="generateJavaCodeModal(' . htmlspecialchars($task['id']) . ', \'' . $safeDescription . '\')">💻 Kód generálása</button>';
-echo '<button class="menu-action-button delete-action" title="Feladat törlése" onclick="deleteTask(' . htmlspecialchars($task['id']) . ', \'' . htmlspecialchars($title) . '\', \'' . $safeDescription . '\')">🗑️ Törlés</button>';                                echo '</div>';
+                                echo '<button class="menu-action-button" title="Edit task" onclick="toggleEdit(' . htmlspecialchars($task['id']) . ', event)">✏️ Edit</button>';
+                                echo '<button class="menu-action-button" title="Decompose Story" onclick="decomposeTask(' . htmlspecialchars($task['id']) . ', \'' . $safeDescription . '\')">🔨 Decompose Story</button>';
+                                echo '<button class="menu-action-button" title="Generate Java Code" onclick="generateJavaCodeModal(' . htmlspecialchars($task['id']) . ', \'' . $safeDescription . '\')">💻 Generate Code</button>';
+                                echo '<button class="menu-action-button delete-action" title="Delete task" onclick="deleteTask(' . htmlspecialchars($task['id']) . ', \'' . htmlspecialchars($title) . '\', \'' . $safeDescription . '\')">🗑️ Delete</button>';
                                 echo '</div>';
+                                echo '</div>';
+
+                                if ($isSubtask) {
+                                    echo '<span class="subtask-badge">Technical Task</span>';
+                                }
 
                                 echo '<p class="card-description" id="desc-' . htmlspecialchars($task['id']) . '" contenteditable="false" data-original-content="' . htmlspecialchars($task['description']) . '">';
                                 echo htmlspecialchars($task['description']);
                                 echo '</p>';
+
+                                if (!empty($poComments)) {
+                                    echo '<div class="po-comment-container">';
+                                    echo '<div class="po-comment-header">🤖 TAIPO PO Feedback</div>';
+                                    echo '<div class="po-comment-text">' . htmlspecialchars($poComments) . '</div>';
+                                    echo '</div>';
+                                }
 
                                 echo '</div>';
                             }
                         } else {
 
                             echo '<div class="task-card empty-placeholder">';
-                            echo '<p class="card-description" style="color: #6c757d; font-style: italic;">Nincsenek feladatok ebben az oszlopban.</p></div>';
+                            echo '<p class="card-description" style="color: #6c757d; font-style: italic;">No tasks in this column.</p></div>';
                         }
                         ?>
 
@@ -752,15 +816,13 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
             <div class="code-modal-content">
                 <button class="modal-close" onclick="closeJavaCodeModal()">x</button>
 
-
-
                 <div id="javaCodeResultContainer" class="code-result-container">
-                    Kód generálása folyamatban...
+                    Generating code...
                 </div>
 
                 <div id="javaCodeLoadingIndicator" style="display: none; text-align: center; margin-top: 15px;">
                     <div class="spinner"></div>
-                    <p>Java kód generálása folyamatban...</p>
+                    <p>Java code generation in progress...</p>
                 </div>
             </div>
         </div>
@@ -768,12 +830,12 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
         <div class="modal-overlay" id="mainGenerationModal" style="display: none;">
             <div class="code-modal-content" style="max-width: 400px; text-align: center; padding: 40px 20px;">
                 <h2 style="margin-bottom: 20px;">
-                    Projekt feladatok generálása:
-                    <strong id="generatingProjectNamePlaceholder">Projekt neve</strong>
+                    Generating project tasks:
+                    <strong id="generatingProjectNamePlaceholder">Project Name</strong>
                 </h2>
                 <div id="mainGenerationLoadingIndicator" style="text-align: center;">
                     <div class="spinner large-spinner"></div>
-                    <p style="margin-top: 15px;">Az AI jelenleg szervezi a projektet.<br>Ez eltarthat 10-20 másodpercig.
+                    <p style="margin-top: 15px;">AI is currently organizing the project.<br>This may take 10-20 seconds.
                     </p>
                 </div>
             </div>
@@ -784,18 +846,18 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
                 <h2>
                     <img width="32" height="32" src="https://img.icons8.com/windows/32/228BE6/github.png"
                         alt="github" />
-                    GitHub bejelentkezés
+                    GitHub Login
                 </h2>
 
 
                 <div class="input-group">
-                    <input type="text" id="github_username_input" placeholder="GitHub felhasználónév"
+                    <input type="text" id="github_username_input" placeholder="GitHub Username"
                         value="<?php echo htmlspecialchars($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME') ?? ''); ?>"
                         required>
                 </div>
 
                 <div class="input-group">
-                    <input type="text" id="github_repo_input" placeholder="GitHub repository neve"
+                    <input type="text" id="github_repo_input" placeholder="GitHub Repository Name"
                         value="<?php echo htmlspecialchars($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO') ?? ''); ?>"
                         required>
                 </div>
@@ -805,14 +867,14 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
                             style="flex-grow: 1;">
 
                         <button type="button" class="help-button" onclick="showHelpMessage(this)"
-                            data-help="A Personal Access Token-t (PAT) a GitHub profilod beállításaiban (Settings > Developer settings > Personal access tokens) tudod létrehozni. Szükséges 'repo' jogosultság!">
+                            data-help="You can create a Personal Access Token (PAT) in your GitHub settings (Settings > Developer settings > Personal access tokens). 'repo' permissions are required!">
                             ?
                         </button>
                     </div>
                 </div>
 
                 <button type="button" class="submit-button" onclick="githubLogin()">
-                    Bejelentkezés / Token Mentése
+                    Login / Save Token
                 </button>
 
                 <div id="modalGithubStatus"
@@ -820,9 +882,9 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
                     <?php
                     if (!$isServerConfigured):
                         ?>
-                        ⚠️ **HIBA:** A szerver oldali repo adatok (GITHUB_REPO) hiányoznak a .env fájlból.
+                        ⚠️ **ERROR:** Server-side repo data (GITHUB_REPO) is missing from the .env file.
                     <?php else: ?>
-                        ✔️ A szerver oldali repo beállítások rendben vannak.
+                        ✔️ Server-side repo settings are OK.
                     <?php endif; ?>
                 </div>
             </div>
@@ -830,7 +892,7 @@ echo '<button class="menu-action-button delete-action" title="Feladat törlése"
         <script>
             window.currentProjectName = "<?php echo htmlspecialchars($currentProjectName ?? ''); ?>";
             const isGitHubRepoConfigured = <?php echo $isServerConfigured ? 'true' : 'false'; ?>;
-            console.log("Projekt Név:", window.currentProjectName);
+            console.log("Project Name:", window.currentProjectName);
         </script>
 
         <script src="script.js"></script>
