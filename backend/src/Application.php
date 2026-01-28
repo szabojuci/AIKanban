@@ -18,6 +18,16 @@ class Application
 
     public function run()
     {
+        // Allow CORS
+        header("Access-Control-Allow-Origin: *");
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+        header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            http_response_code(200);
+            exit;
+        }
+
         $this->initEnvAndInput();
 
         $apiKey = $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY');
@@ -42,6 +52,24 @@ class Application
         }
 
         $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
+
+        // Check if client expects JSON (API mode)
+        $isApiRequest = (
+            (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
+            isset($_GET['api'])
+        );
+
+        if ($isApiRequest) {
+            header(Config::APP_JSON);
+            echo json_encode([
+                'currentProjectName' => $currentProjectName,
+                'existingProjects' => $existingProjects,
+                'error' => $error,
+                'columns' => array_keys($columns), // frontend might need keys or full obj
+                'tasks' => $kanbanTasks
+            ]);
+            exit;
+        }
 
         $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !empty($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'));
 
