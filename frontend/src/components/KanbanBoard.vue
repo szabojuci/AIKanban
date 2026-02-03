@@ -1,6 +1,6 @@
 <template>
     <div class="flex flex-nowrap overflow-x-auto gap-4 p-4 h-[calc(100vh-140px)]">
-        <div v-for="(style, title) in columns" :key="title" class="min-w-[300px] flex flex-col bg-base-100 rounded-box shadow-xl h-full">
+        <div v-for="(style, title) in columns" :key="title" class="min-w-[280px] flex flex-col bg-base-100 rounded-box shadow-xl h-full">
 
             <!-- Column Header -->
             <div :class="`p-4 rounded-t-box font-bold flex justify-between items-center bg-${getResultingColor(style)} text-primary-content`">
@@ -22,12 +22,14 @@
                 @drop="onDrop($event, title)"
             >
                 <TaskCard
-                    v-for="task in tasks[title]" 
-                    :key="task.id" 
-                    :task="task" 
+                    v-for="task in tasks[title]"
+                    :key="task.id"
+                    :task="task"
                     @dragstart="onDragStart($event, task)"
                     @delete="$emit('task-deleted', task.id)"
                     @toggle-imp="$emit('task-updated')"
+                    @decompose="$emit('decompose', $event)"
+                    @generate-code="$emit('generate-code', $event)"
                 />
 
                 <div v-if="!tasks[title]?.length" class="text-center p-8 text-base-content/50 italic">
@@ -46,7 +48,8 @@ import { api } from '../services/api';
 
 const props = defineProps({
     columns: Object,
-    tasks: Object
+    tasks: Object,
+    currentProject: String
 });
 
 const emit = defineEmits(['task-updated', 'task-deleted', 'task-added']);
@@ -54,7 +57,7 @@ const emit = defineEmits(['task-updated', 'task-deleted', 'task-added']);
 const getResultingColor = (style) => {
     // Mapping internal style names to DaisyUI/Tailwind colors if needed
     // 'info', 'danger', 'warning', 'primary', 'success' map well to DaisyUI classes
-    if (style === 'danger') return 'error'; 
+    if (style === 'danger') return 'error';
     return style;
 };
 
@@ -67,9 +70,8 @@ const onDrop = async (event, newStatus) => {
     const taskId = event.dataTransfer.getData('taskId');
     if (!taskId) return;
 
-    // Optimistic UI update could happen here, but for now let's just call API
     try {
-        await api.updateStatus(taskId, newStatus, 'TODO_PROJECT_NAME'); // Pass project name correctly
+        await api.updateStatus(taskId, newStatus, props.currentProject);
         emit('task-updated');
     } catch (e) {
         alert(e.response?.data?.error || "Failed to move task");
@@ -79,7 +81,7 @@ const onDrop = async (event, newStatus) => {
 const addTask = async () => {
     const desc = prompt("New Task Description:");
     if (!desc) return;
-    await api.addTask('TODO_PROJECT_NAME', desc); // Pass project name
+    await api.addTask(props.currentProject, desc);
     emit('task-added');
 };
 </script>

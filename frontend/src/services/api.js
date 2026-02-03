@@ -10,13 +10,11 @@ const client = axios.create({
 });
 
 export const api = {
-    async getKanbanTasks() {
-        const response = await client.get('/');
-        // Backend returns generic JSON, we need to adapt if structure differs
-        // Expecting { tasks: {...} } or simply the tasks array/object
-        // Based on current PHP logic, we need to standardize the response.
-        // Let's assume the PHP will return the 'kanbanTasks' array directly.
-        return response.data;
+    async getKanbanTasks(project) {
+        const url = project ? `/?project=${encodeURIComponent(project)}` : '/';
+        const response = await client.get(url);
+        // Backend returns: { tasks: {...}, existingProjects: [...], ... }
+        return response.data.tasks;
     },
 
     async addTask(project, description) {
@@ -55,6 +53,43 @@ export const api = {
             action: 'toggle_importance',
             task_id: taskId,
             is_important: isImportant
+        });
+    },
+
+    async getProjects() {
+        // Backend returns existingProjects in the main view data
+        const response = await client.get('/');
+        return response.data.existingProjects || [];
+    },
+
+    async generateTasks(projectName, prompt) {
+        return client.post('/', {
+            project_name: projectName,
+            ai_prompt: prompt
+        });
+    },
+
+    async editTask(taskId, description) {
+        return client.post('/', {
+            action: 'edit_task',
+            task_id: taskId,
+            description: description
+        });
+    },
+
+    async generateCode(taskId, description) {
+        return client.post('/', {
+            action: 'generate_java_code',
+            task_id: taskId,
+            description: description
+        });
+    },
+
+    async decomposeTask(taskId, description) {
+        return client.post('/', {
+            action: 'decompose_task',
+            task_id: taskId,
+            description: description
         });
     }
 };
