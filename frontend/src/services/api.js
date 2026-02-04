@@ -17,18 +17,20 @@ export const api = {
         return response.data.tasks;
     },
 
-    async addTask(project, description) {
+    async addTask(project, description, priority = 0) {
         const formData = new FormData();
         formData.append('action', 'add_task');
         formData.append('current_project', project);
         formData.append('description', description);
+        formData.append('is_important', priority);
 
         // PHP expects POST form-data or JSON with specific structure.
         // Let's stick to JSON since we handle it in Application.php (lines 68-75)
         return client.post('/', {
             action: 'add_task',
             current_project: project,
-            description: description
+            description: description,
+            is_important: priority
         });
     },
 

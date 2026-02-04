@@ -77,12 +77,13 @@ class TaskService
         return $tasks;
     }
 
-    public function addTask(string $projectName, string $description): int
+    public function addTask(string $projectName, string $description, int $isImportant = 0): int
     {
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, 'SPRINT BACKLOG')");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status, is_important) VALUES (:project_name, :description, 'SPRINT BACKLOG', :is_important)");
         $stmt->execute([
             ':project_name' => $projectName,
-            ':description' => $description
+            ':description' => $description,
+            ':is_important' => $isImportant
         ]);
         return (int) $this->pdo->lastInsertId();
     }

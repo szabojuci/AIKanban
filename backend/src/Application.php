@@ -206,12 +206,13 @@ class Application
     {
         $newTaskDescription = trim($_POST['description'] ?? '');
         $projectForAdd = trim($_POST['current_project'] ?? '');
+        $isImportant = (int)($_POST['is_important'] ?? 0);
 
         if (!empty($newTaskDescription) && !empty($projectForAdd)) {
             try {
-                $newId = $this->taskService->addTask($projectForAdd, $newTaskDescription);
+                $newId = $this->taskService->addTask($projectForAdd, $newTaskDescription, $isImportant);
                 header(Config::APP_JSON);
-                echo json_encode(['success' => true, 'id' => $newId, 'description' => $newTaskDescription]);
+                echo json_encode(['success' => true, 'id' => $newId, 'description' => $newTaskDescription, 'is_important' => $isImportant]);
                 exit;
             } catch (Exception $e) {
                 http_response_code(500);

@@ -104,13 +104,23 @@ const openAddTaskModal = () => {
     isTaskModalOpen.value = true;
 };
 
-const handleAddTask = async (description) => {
+const handleAddTask = async (payload) => {
     // Close modal immediately
     isTaskModalOpen.value = false;
 
+    let description, priority;
+
+    if (typeof payload === 'object') {
+        description = payload.description;
+        priority = payload.priority;
+    } else {
+        description = payload;
+        priority = 0;
+    }
+
     if (!description) return;
     try {
-        await api.addTask(props.currentProject, description);
+        await api.addTask(props.currentProject, description, priority);
         emit('task-added');
     } catch (e) {
         alert("Failed to add task: " + e.message);
