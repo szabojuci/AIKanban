@@ -31,6 +31,7 @@
                 </div>
             </div>
             <div class="mb-4 relative">
+                <label class="label font-bold text-sm text-gray-200" for="task-title">Task Title</label>
                 <input
                     id="task-title"
                     type="text"
@@ -41,12 +42,13 @@
                     @keyup.enter="save"
                     ref="titleInput"
                 />
-                <div class="absolute right-2 bottom-2 bg-gray-200 text-green-600 text-xs px-1 rounded">
+                <div class="absolute right-2 bottom-2 bg-gray-100 text-green-800 text-xs px-1 rounded">
                     {{ 42 - title.length }}
                 </div>
             </div>
 
             <div class="mb-4 relative">
+                <label class="label font-bold text-sm text-gray-200" for="task-desc">Description</label>
                 <textarea
                     id="task-desc"
                     placeholder="Task Description"
@@ -54,7 +56,7 @@
                     v-model="description"
                     maxlength="512"
                 ></textarea>
-                <div class="absolute right-2 bottom-2 bg-gray-200 text-green-600 text-xs px-1 rounded">
+                <div class="absolute right-2 bottom-2 bg-gray-100 text-green-800 text-xs px-1 rounded">
                     {{ 512 - description.length }}
                 </div>
             </div>
