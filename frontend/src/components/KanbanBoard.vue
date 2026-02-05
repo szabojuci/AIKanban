@@ -31,7 +31,7 @@
                 <template #item="{ element }">
                     <TaskCard
                         :task="element"
-                        @delete="$emit('task-deleted', element.id)"
+                        @request-delete="confirmDeleteTask(element)"
                         @toggle-imp="$emit('task-updated')"
                         @task-updated="$emit('task-updated')"
                         @decompose="$emit('decompose', element)"
@@ -61,14 +61,24 @@
             @close="isTaskModalOpen = false"
             @save="handleAddTask"
         />
+
+        <Teleport to="body">
+            <SafeDeleteModal
+                :is-open="isDeleteModalOpen"
+                :task-description="taskToDelete?.description || ''"
+                @close="isDeleteModalOpen = false"
+                @confirm="handleTaskDeleted"
+            />
+        </Teleport>
     </div>
 </template>
 
 <script setup>
-import { ref, defineProps, defineEmits } from 'vue';
+import { ref, defineProps, defineEmits, onMounted, onBeforeUnmount } from 'vue';
 import draggable from 'vuedraggable';
 import TaskCard from './TaskCard.vue';
 import TaskModal from './modals/TaskModal.vue';
+import SafeDeleteModal from './modals/SafeDeleteModal.vue';
 import { api } from '../services/api';
 
 const props = defineProps({
@@ -125,6 +135,55 @@ const handleAddTask = async (payload) => {
         emit('task-added');
     } catch (e) {
         alert("Failed to add task: " + e.message);
+    }
+};
+
+// --- Safe Delete Logic ---
+const isDeleteModalOpen = ref(false);
+const taskToDelete = ref(null);
+
+const confirmDeleteTask = (task) => {
+    console.log('confirmDeleteTask called', task);
+    taskToDelete.value = task;
+    isDeleteModalOpen.value = true;
+    // expose a simple global flag for E2E checks (guarded)
+    if (globalThis.window !== undefined) {
+        globalThis.window.__taipo_delete_state = { open: true, task };
+    }
+};
+
+const handleGlobalDelete = (e) => {
+    confirmDeleteTask(e.detail);
+};
+
+onMounted(() => {
+    if (globalThis !== undefined && globalThis.window) {
+        globalThis.window.addEventListener('taipo:request-delete', handleGlobalDelete);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (globalThis !== undefined && globalThis.window) {
+        globalThis.window.removeEventListener('taipo:request-delete', handleGlobalDelete);
+    }
+});
+
+const handleTaskDeleted = async () => {
+    if (!taskToDelete.value) return;
+
+    try {
+        await api.deleteTask(taskToDelete.value.id);
+        emit('task-deleted', taskToDelete.value.id); // Or just trigger refresh
+    } catch (e) {
+        console.error("Failed to delete task", e);
+        alert("Failed to delete task: " + e.message);
+    } finally {
+        isDeleteModalOpen.value = false;
+        taskToDelete.value = null;
+        // clear the global flag (guarded)
+        if (globalThis !== undefined && globalThis.window) {
+            globalThis.window.__taipo_delete_state = { open: false, task: null };
+        }
     }
 };
 </script>

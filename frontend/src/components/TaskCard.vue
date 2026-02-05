@@ -41,9 +41,9 @@
                     </button>
                     <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
                         <li><button @click.prevent="enableEdit">✏️ Edit</button></li>
-                        <li><a @click="$emit('decompose', task)">🔨 Decompose Story</a></li>
-                        <li><a @click="$emit('generate-code', task)">💻 Generate Code</a></li>
-                        <li><a @click="$emit('delete')" class="text-error">🗑️ Delete</a></li>
+                        <li><button type="button" @click.prevent="$emit('decompose', task)">🔨 Decompose Story</button></li>
+                        <li><button type="button" @click.prevent="$emit('generate-code', task)">💻 Generate Code</button></li>
+                        <li><button type="button" @click.prevent="requestDelete" class="text-error">🗑️ Delete</button></li>
                     </ul>
                 </div>
             </div>
@@ -86,7 +86,7 @@ const props = defineProps({
     task: Object
 });
 
-const emit = defineEmits(['toggle-imp', 'delete', 'task-updated', 'decompose', 'generate-code']);
+const emit = defineEmits(['toggle-imp', 'request-delete', 'task-updated', 'decompose', 'generate-code']);
 
 const priority = computed(() => Number(props.task.is_important) || 0);
 const isEditing = ref(false);
@@ -103,9 +103,18 @@ const getStarColor = (index) => {
 
 const togglePriority = async (p) => {
     // If clicking the current priority, toggle it off (to 0).
-    const newPriority = (priority.value === p) ? 0 : p;
+    const current = Number(props.task.is_important) || 0;
+    const newPriority = current === p ? 0 : p;
     await api.toggleImportance(props.task.id, newPriority);
     emit('toggle-imp');
+};
+
+const requestDelete = () => {
+    emit('request-delete', props.task);
+    // Also dispatch a global event so parents outside Vue tree (or HMR timing) can catch it reliably
+    if (typeof globalThis !== 'undefined' && globalThis.window && typeof globalThis.window.dispatchEvent === 'function') {
+        globalThis.window.dispatchEvent(new CustomEvent('taipo:request-delete', { detail: props.task }));
+    }
 };
 
 const enableEdit = async () => {
