@@ -12,7 +12,8 @@ $uri = urldecode(
 $publicPath = __DIR__ . '/public';
 
 // If the requested resource exists as a file in public/, serve it
-if ($uri !== '/' && file_exists($publicPath . $uri)) {
+// But do NOT serve .php files statically
+if ($uri !== '/' && file_exists($publicPath . $uri) && !str_ends_with($uri, '.php')) {
     $file = $publicPath . $uri;
     $mime = mime_content_type($file);
 
