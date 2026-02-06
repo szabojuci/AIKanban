@@ -144,6 +144,7 @@ class Application
         // We should switch to ProjectService completely for list of projects.
 
         $existingProjects = [];
+        $projectsData = [];
         try {
             $projectsData = $this->projectService->getAllProjects();
             $existingProjects = array_column($projectsData, 'name');
@@ -172,6 +173,7 @@ class Application
             echo json_encode([
                 'currentProjectName' => $currentProjectName,
                 'existingProjects' => $existingProjects,
+                'projects' => $projectsData,
                 'error' => $error,
                 'columns' => array_keys($columns),
                 'tasks' => $kanbanTasks
