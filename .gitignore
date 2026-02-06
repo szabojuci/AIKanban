@@ -1,6 +1,8 @@
 __OFFLINE
 .vscode
 
+.htaccess
+
 # Backend
 backend/.env
 backend/vendor/

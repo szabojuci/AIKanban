@@ -3,10 +3,12 @@
 namespace App;
 
 use App\Service\TaskService;
+use App\Service\ProjectService;
 use App\Service\GitHubService;
+use App\Controller\TaskController;
+use App\Controller\ProjectController;
 use App\Utils;
 use App\Config;
-use App\Exception\WipLimitExceededException;
 use App\Core\View;
 use Exception;
 use Dotenv\Dotenv;
@@ -14,12 +16,23 @@ use Dotenv\Dotenv;
 class Application
 {
     private TaskService $taskService;
+    private ProjectService $projectService;
     private GitHubService $githubService;
+    private TaskController $taskController;
+    private ProjectController $projectController;
 
     public function run()
     {
-        // Allow CORS
-        header("Access-Control-Allow-Origin: *");
+        // Allow CORS with safety checks
+        $allowedOrigins = explode(',', $_ENV['ALLOWED_ORIGINS'] ?? getenv('ALLOWED_ORIGINS') ?: '');
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+
+        if (!empty($origin) && in_array($origin, $allowedOrigins)) {
+            // Allow if origin is in whitelist or if it's a same-origin request (often empty origin for standard navigation)
+            // But relying on empty origin for API calls from browsers is tricky, usually browsers send Origin.
+            // For now, let's just echo back the origin if it matches.
+            header("Access-Control-Allow-Origin: $origin");
+        }
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
         header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
 
@@ -35,6 +48,85 @@ class Application
 
         $error = $this->initServices($dbFile);
 
+        if ($error) {
+            // If DB connection fails, we can't do much but show error
+            echo "Critical Error: " . $error;
+            exit;
+        }
+
+        // Router / Dispatcher Logic
+
+        $action = $_POST['action'] ?? null;
+
+        // Existing actions delegating to TaskController
+        if ($action) {
+            switch ($action) {
+                // Task Actions
+                case 'add_task':
+                    $this->taskController->handleAddTask();
+                    exit;
+                case 'delete_task':
+                    $this->taskController->handleDeleteTask();
+                    exit;
+                case 'toggle_importance':
+                    $this->taskController->handleToggleImportance();
+                    exit;
+                case 'update_status':
+                    $this->taskController->handleUpdateStatus();
+                    exit;
+                case 'edit_task':
+                    $this->taskController->handleEditTask();
+                    exit;
+                    // Should it be `generate_source_code`? Why just "java"?
+                    // Give an option for few languages, like: python, php, rust, c, cpp, cs, java, typescript...
+                case 'generate_java_code':
+                    $this->taskController->handleGenerateJavaCode($apiKey);
+                    exit;
+                case 'decompose_task':
+                    // We need project name here
+                    $this->taskController->handleDecomposeTask($apiKey);
+                    exit;
+                case 'commit_to_github':
+                    $this->handleCommitToGithub();
+                    exit;
+
+                    // Project Actions
+                case 'create_project':
+                    $this->projectController->handleCreate();
+                    exit;
+                case 'list_projects':
+                    $this->projectController->handleList();
+                    exit;
+                case 'update_project':
+                    $this->projectController->handleUpdate();
+                    exit;
+                case 'delete_project':
+                    $this->projectController->handleDelete();
+                    exit;
+                default:
+                    // Fallthrough to main page or 404 if API?
+                    // For now break to allow rendering dashboard if action is unknown but page load is fine
+                    break;
+            }
+        }
+
+        // Handle Project Generation via POST (legacy)
+        $projectName = trim($_POST['project_name'] ?? '');
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_POST['action'])) {
+            // This is the "Generate Project" flow
+            $err = $this->handleProjectGeneration($projectName, $apiKey);
+            if ($err) {
+                $error = $err;
+            }
+        }
+
+
+        // Default View Rendering
+        $this->renderDashboard($error);
+    }
+
+    private function renderDashboard($error)
+    {
         $columns = [
             'SPRINT BACKLOG' => 'info',
             'IMPLEMENTATION WIP:3' => 'danger',
@@ -43,17 +135,32 @@ class Application
             'DONE' => 'success',
         ];
 
-        $projectName = trim($_POST['project_name'] ?? '');
-        $existingProjects = [];
-        $currentProjectName = $this->resolveCurrentProject($projectName, $existingProjects, $error);
+        // Resolve current project
+        // We now fetch projects via ProjectService but need to maintain compatibility with existing functionality
+        // for now we still use TaskService->getProjects() or ProjectService->getAllProjects()
+        // Wait, TaskService->getProjects() uses `SELECT DISTINCT project_name...`
+        // ProjectService->getAllProjects() uses `projects` table.
+        // We should switch to ProjectService completely for list of projects.
 
-        if (!$error) {
-            $this->dispatchActions($currentProjectName, $columns, $apiKey, $error);
+        $existingProjects = [];
+        try {
+            $projectsData = $this->projectService->getAllProjects();
+            $existingProjects = array_column($projectsData, 'name');
+        } catch (Exception $e) {
+            $error = "Error loading projects: " . $e->getMessage();
+        }
+
+        $projectName = trim($_POST['project_name'] ?? '');
+        $currentProjectName = trim($_GET['project'] ?? $projectName ?? '');
+        $currentProjectName = trim($_POST['current_project'] ?? $currentProjectName);
+
+        if (empty($currentProjectName) && !empty($existingProjects)) {
+            $currentProjectName = $existingProjects[0];
         }
 
         $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
 
-        // Check if client expects JSON (API mode)
+        // Check if client expects JSON (API mode general)
         $isApiRequest = (
             (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) ||
             isset($_GET['api'])
@@ -65,7 +172,7 @@ class Application
                 'currentProjectName' => $currentProjectName,
                 'existingProjects' => $existingProjects,
                 'error' => $error,
-                'columns' => array_keys($columns), // frontend might need keys or full obj
+                'columns' => array_keys($columns),
                 'tasks' => $kanbanTasks
             ]);
             exit;
@@ -73,7 +180,6 @@ class Application
 
         $isServerConfigured = !empty($_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO')) && !empty($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'));
 
-        // Render the view using the namespace-imported View class
         View::render('index.view.php', [
             'currentProjectName' => $currentProjectName,
             'existingProjects' => $existingProjects,
@@ -107,6 +213,10 @@ class Application
         $error = null;
         try {
             $this->taskService = new TaskService($dbFile);
+            $this->projectService = new ProjectService($dbFile);
+
+            $this->taskController = new TaskController($this->taskService);
+            $this->projectController = new ProjectController($this->projectService);
         } catch (Exception $e) {
             $error = $e->getMessage();
         }
@@ -120,250 +230,8 @@ class Application
         return $error;
     }
 
-    private function resolveCurrentProject(string $projectName, array &$existingProjects, ?string &$error): string
-    {
-        $currentProjectName = trim($_GET['project'] ?? $projectName ?? '');
-        $currentProjectName = trim($_POST['current_project'] ?? $currentProjectName);
-
-        if (!$error) {
-            try {
-                $existingProjects = $this->taskService->getProjects();
-                if (empty($currentProjectName) && !empty($existingProjects)) {
-                    $currentProjectName = $existingProjects[0];
-                }
-            } catch (Exception $e) {
-                $error = "Error loading projects: " . $e->getMessage();
-            }
-        }
-
-        return $currentProjectName;
-    }
-
-    private function dispatchActions(string &$currentProjectName, array $columns, ?string $apiKey, ?string &$error): void
-    {
-        if (isset($_POST['action'])) {
-            $action = $_POST['action'];
-            switch ($action) {
-                case 'add_task':
-                    $this->handleAddTask();
-                    break;
-                case 'delete_task':
-                    $this->handleDeleteTask();
-                    break;
-                case 'toggle_importance':
-                    $this->handleToggleImportance();
-                    break;
-                case 'update_status':
-                    $this->handleUpdateStatus($currentProjectName, $columns);
-                    break;
-                case 'edit_task':
-                    $this->handleEditTask();
-                    break;
-                case 'generate_java_code':
-                    $this->handleGenerateJavaCode($apiKey);
-                    break;
-                case 'commit_to_github':
-                    $this->handleCommitToGithub();
-                    break;
-                case 'decompose_task':
-                    $this->handleDecomposeTask($currentProjectName, $apiKey);
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        $projectName = trim($_POST['project_name'] ?? '');
-        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($projectName) && !isset($_POST['action'])) {
-            $error = $this->handleProjectGeneration($projectName, $apiKey);
-        }
-    }
-
-    private function loadKanbanTasks(string $currentProjectName, array $columns, ?string &$error): array
-    {
-        $kanbanTasks = [];
-        foreach ($columns as $col => $style) {
-            $kanbanTasks[$col] = [];
-        }
-
-        if (!empty($currentProjectName) && !$error) {
-            try {
-                $tasks = $this->taskService->getTasksByProject($currentProjectName);
-                foreach ($tasks as $task) {
-                    if (isset($kanbanTasks[$task['status']])) {
-                        $kanbanTasks[$task['status']][] = $task;
-                    }
-                }
-            } catch (Exception $e) {
-                $error = "Error reading data: " . $e->getMessage();
-            }
-        }
-
-        return $kanbanTasks;
-    }
-
-    private function handleAddTask()
-    {
-        $newTaskDescription = trim($_POST['description'] ?? '');
-        $projectForAdd = trim($_POST['current_project'] ?? '');
-        $isImportant = (int)($_POST['is_important'] ?? 0);
-
-        if (!empty($newTaskDescription) && !empty($projectForAdd)) {
-            try {
-                $newId = $this->taskService->addTask($projectForAdd, $newTaskDescription, $isImportant);
-                header(Config::APP_JSON);
-                echo json_encode(['success' => true, 'id' => $newId, 'description' => $newTaskDescription, 'is_important' => $isImportant]);
-                exit;
-            } catch (Exception $e) {
-                http_response_code(500);
-                error_log("Error adding task: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Server error: " . $e->getMessage()]);
-                exit;
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Project name and task description are required."]);
-            exit;
-        }
-    }
-
-    private function handleDeleteTask()
-    {
-        $taskId = $_POST['task_id'] ?? null;
-
-        if (is_numeric($taskId)) {
-            try {
-                $taskStatus = $this->taskService->deleteTask((int)$taskId);
-                header(Config::APP_JSON);
-                echo json_encode(['success' => true, 'status' => $taskStatus]);
-                http_response_code(200);
-                exit;
-            } catch (Exception $e) {
-                http_response_code(500);
-                http_response_code(500);
-                error_log("Error deleting task: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Server error during deletion: " . $e->getMessage()]);
-                exit;
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Invalid ID for deletion."]);
-            exit;
-        }
-    }
-
-    private function handleToggleImportance()
-    {
-        $taskId = $_POST['task_id'] ?? null;
-        $isImportant = filter_var($_POST['is_important'] ?? 0, FILTER_VALIDATE_INT);
-
-        if (is_numeric($taskId)) {
-            try {
-                $this->taskService->toggleImportance((int)$taskId, (int)$isImportant);
-                header(Config::APP_JSON);
-                echo "Success: Importance toggled for task ID {$taskId}";
-                http_response_code(200);
-                exit;
-            } catch (Exception $e) {
-                http_response_code(500);
-                error_log("Error toggling importance: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Server error during importance toggle."]);
-                exit;
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Invalid ID for importance toggle."]);
-            exit;
-        }
-    }
-
-    private function handleUpdateStatus($currentProjectName, $columns)
-    {
-        $taskId = $_POST['task_id'] ?? null;
-        $newStatus = $_POST['new_status'] ?? null;
-        //$oldStatus = $_POST['old_status'] ?? null; // Unused in logic but present in POST
-        $projectNameForWIP = trim($_POST['current_project'] ?? $currentProjectName);
-
-        if (is_numeric($taskId) && in_array($newStatus, array_keys($columns))) {
-            try {
-                $this->taskService->updateStatus((int)$taskId, $newStatus, $projectNameForWIP);
-                echo "Success: ID {$taskId}, new status: {$newStatus}";
-                http_response_code(200);
-                exit;
-            } catch (WipLimitExceededException $e) {
-                http_response_code(403);
-                header(Config::APP_JSON);
-                echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-                exit;
-            } catch (Exception $e) {
-                $code = $e->getCode() ?: 500;
-                http_response_code($code);
-                error_log("Database update error: " . $e->getMessage());
-                echo "Server error during status update: " . $e->getMessage();
-                exit;
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or status value."]);
-            exit;
-        }
-    }
-
-    private function handleEditTask()
-    {
-        $taskId = $_POST['task_id'] ?? null;
-        $newDescription = trim($_POST['description'] ?? '');
-
-        if (is_numeric($taskId) && !empty($newDescription)) {
-            try {
-                $this->taskService->updateDescription((int)$taskId, $newDescription);
-                header(Config::APP_JSON);
-                echo json_encode(['success' => true]);
-                http_response_code(200);
-                exit;
-            } catch (Exception $e) {
-                http_response_code(500);
-                error_log("Error updating task description: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Server error during description update."]);
-                exit;
-            }
-        } else {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or empty description."]);
-            exit;
-        }
-    }
-
-    private function handleGenerateJavaCode($apiKey)
-    {
-        $description = trim($_POST['description'] ?? '');
-
-        if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => "Error: Gemini API key is not set."]);
-            exit;
-        }
-
-        if (empty($description)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Error: Task description is missing."]);
-            exit;
-        }
-
-        $prompt = "Generate a **complete, but very concise** Java class or function to solve the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```java ... ```).";
-
-        try {
-            $rawText = Utils::callGeminiAPI($apiKey, $prompt);
-            header(Config::APP_JSON);
-            echo json_encode(['success' => true, 'code' => Utils::formatCodeBlocks($rawText)]);
-            exit;
-        } catch (Exception $e) {
-            http_response_code(500);
-            error_log("Code generation error: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => "Gemini API error: " . $e->getMessage()]);
-            exit;
-        }
-    }
+    // Remaining methods (commit, generate, load tasks) kept here for now or moved partially.
+    // Ideally commit logic should also move to TaskController or GitHubController
 
     private function handleCommitToGithub()
     {
@@ -402,7 +270,7 @@ class Application
         } catch (Exception $e) {
             $code = $e->getCode() ?: 500;
             http_response_code($code);
-            error_log("GitHub commit hiba: HTTP {$code}. " . $e->getMessage());
+            error_log("GitHub commit error: HTTP {$code}. " . $e->getMessage());
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
             exit;
         }
@@ -410,23 +278,35 @@ class Application
 
     private function handleProjectGeneration($projectName, $apiKey)
     {
-        $rawPrompt = trim($_POST['ai_prompt'] ?? '');
+        // This logic is bound to 'Start Project' AI generation that creates multiple tasks.
+        // It uses TaskService::replaceProjectTasks.
 
-        if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-            return "Error: Gemini API key is not set.";
-        } elseif (empty($rawPrompt)) {
-            return "Error: The AI prompt field cannot be empty.";
-        }
-
-        $prompt = str_replace('{{PROJECT_NAME}}', $projectName, $rawPrompt);
-
+        // We should also ensure the project exists in `projects` table!
         try {
+            // Create project if not exists
+            try {
+                $this->projectService->createProject($projectName);
+            } catch (Exception $e) {
+                // Ignore if exists
+            }
+
+            // Logic from original handleProjectGeneration
+            $rawPrompt = trim($_POST['ai_prompt'] ?? '');
+
+            if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
+                return "Error: Gemini API key is not set.";
+            } elseif (empty($rawPrompt)) {
+                return "Error: The AI prompt field cannot be empty.";
+            }
+
+            $prompt = str_replace('{{PROJECT_NAME}}', $projectName, $rawPrompt);
             $rawText = Utils::callGeminiAPI($apiKey, $prompt);
 
             $lines = explode("\n", $rawText);
             $newTasks = [];
 
             foreach ($lines as $line) {
+                // ... (Parsing logic same as before)
                 $line = trim($line);
                 if (empty($line)) {
                     continue;
@@ -435,6 +315,7 @@ class Application
                 $taskDescription = $line;
                 $finalStatus = 'SPRINTBACKLOG';
 
+                // "SPRINTBACKLOG" vs. "SPRINT BACKLOG"
                 if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*)/iu', $line, $matches)) {
                     $taskDescription = trim($matches[2]);
                     $finalStatus = strtoupper($matches[1]);
@@ -448,17 +329,8 @@ class Application
                 }
             }
 
-            $tasksAdded = $this->taskService->replaceProjectTasks($projectName, $newTasks);
-
-            if ($tasksAdded < 5) {
-                // If specific requirement was not met, we could set a variable to warn in view.
-                // But since we are redirecting, we can't easily pass it unless via session or query param.
-                // The original code passed 'tasksAdded' implicitly if variables were shared.
-                // Here we redirect, so we lose it unless we stay.
-                // The original code continued execution falling through to View render?
-                // Step 425: header("Location: ...") exit;
-                // So original code also exited.
-            }
+            // Replaces tasks in `tasks` table
+            $this->taskService->replaceProjectTasks($projectName, $newTasks);
 
             header("Location: " . basename($_SERVER['SCRIPT_NAME']) . "?project=" . urlencode($projectName));
             exit;
@@ -467,26 +339,26 @@ class Application
         }
     }
 
-    private function handleDecomposeTask($currentProjectName, $apiKey)
+    private function loadKanbanTasks(string $currentProjectName, array $columns, ?string &$error): array
     {
-        $taskId = $_POST['task_id'] ?? null; // Not used in service but kept for consistency if needed later
-        $desc = $_POST['description'] ?? '';
-
-        if (empty($desc) || empty($currentProjectName)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Missing description or project."]);
-            exit;
+        $kanbanTasks = [];
+        foreach ($columns as $col => $style) {
+            $kanbanTasks[$col] = [];
         }
 
-        try {
-            $count = $this->taskService->decomposeTask($desc, $currentProjectName, $apiKey);
-            header(Config::APP_JSON);
-            echo json_encode(['success' => true, 'count' => $count]);
-            exit;
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => "Error: " . $e->getMessage()]);
-            exit;
+        if (!empty($currentProjectName) && !$error) {
+            try {
+                $tasks = $this->taskService->getTasksByProject($currentProjectName);
+                foreach ($tasks as $task) {
+                    if (isset($kanbanTasks[$task['status']])) {
+                        $kanbanTasks[$task['status']][] = $task;
+                    }
+                }
+            } catch (Exception $e) {
+                $error = "Error reading data: " . $e->getMessage();
+            }
         }
+
+        return $kanbanTasks;
     }
 }
