@@ -11,6 +11,7 @@ use App\Utils;
 use App\Config;
 use App\Core\View;
 use Exception;
+use App\Database;
 use Dotenv\Dotenv;
 
 class Application
@@ -212,8 +213,11 @@ class Application
     {
         $error = null;
         try {
-            $this->taskService = new TaskService($dbFile);
-            $this->projectService = new ProjectService($dbFile);
+            $database = new Database($dbFile);
+            $pdo = $database->getPdo();
+
+            $this->taskService = new TaskService($pdo);
+            $this->projectService = new ProjectService($pdo);
 
             $this->taskController = new TaskController($this->taskService);
             $this->projectController = new ProjectController($this->projectService);
