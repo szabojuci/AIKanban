@@ -9,8 +9,8 @@
             <div
                 :class="`p-4 rounded-t-box font-bold flex justify-between items-center bg-${getResultingColor(style)} text-primary-content`"
             >
-                <span>{{ title }}</span>
-                <div class="badge badge-ghost">
+                <span>{{ formatColumnTitle(title) }}</span>
+                <div v-if="parseWipLimit(title) === Infinity" class="badge badge-ghost">
                     {{ tasks[title]?.length || 0 }}
                 </div>
             </div>
@@ -85,6 +85,7 @@
                 @confirm="handleTaskDeleted"
             />
         </Teleport>
+
     </div>
 </template>
 
@@ -108,6 +109,7 @@ const emit = defineEmits([
     "task-added",
     "decompose",
     "generate-code",
+    "show-notification",
 ]);
 
 const isTaskModalOpen = ref(false);
@@ -133,6 +135,13 @@ const onDraggableChange = async (event, newStatus) => {
         needsUpdate = true;
     }
 
+    const limit = parseWipLimit(newStatus);
+    if (limit !== Infinity && props.tasks[newStatus].length > limit) {
+        emit("show-notification", `WIP limit of ${limit} reached for column "${formatColumnTitle(newStatus)}"!`, 'error');
+        emit("task-updated"); // Revert UI by refreshing from server
+        return;
+    }
+
     if (needsUpdate && task) {
         // Get the new order of IDs in this column
         const newTaskIds = props.tasks[newStatus].map(t => t.id);
@@ -147,6 +156,20 @@ const onDraggableChange = async (event, newStatus) => {
             emit("task-updated"); // Revert by refreshing from server
         }
     }
+};
+
+const parseWipLimit = (columnTitle) => {
+    const match = columnTitle.match(/WIP:(\d+)/);
+    return match ? Number.parseInt(match[1], 10) : Infinity;
+};
+
+const formatColumnTitle = (title) => {
+    const limit = parseWipLimit(title);
+    if (limit === Infinity) return title;
+
+    const baseTitle = title.replace(/WIP:\d+/, '').trim();
+    const count = props.tasks[title]?.length || 0;
+    return `${baseTitle} - WIP: ${count} / ${limit}`;
 };
 
 const openAddTaskModal = () => {
