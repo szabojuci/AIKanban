@@ -137,5 +137,13 @@ export const api = {
             key: key,
             value: value
         });
+    },
+
+    async queryTask(taskId, query) {
+        return client.post('/', {
+            action: 'query_task',
+            task_id: taskId,
+            query: query
+        });
     }
 };

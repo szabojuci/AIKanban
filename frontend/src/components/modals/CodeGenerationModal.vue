@@ -24,7 +24,10 @@
                 v-else-if="error"
                 class="alert alert-error mt-4"
             >
-                {{ error }}
+                <p class="font-bold">{{ error.split(' - Response:')[0] }}</p>
+                <div v-if="error.includes(' - Response:')" class="mt-2 text-xs opacity-75 font-mono break-all bg-black/10 p-2 rounded">
+                    {{ error.split(' - Response:')[1] }}
+                </div>
             </div>
 
             <div v-else class="mt-4">

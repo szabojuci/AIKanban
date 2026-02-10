@@ -96,6 +96,9 @@ class Application
                 case 'commit_to_github':
                     $this->handleCommitToGithub();
                     exit;
+                case 'query_task':
+                    $this->taskController->handleQueryTask($apiKey);
+                    exit;
 
                     // Project Actions
                 case 'create_project':

@@ -91,6 +91,7 @@
                     @task-added="refreshTasks"
                     @decompose="handleDecompose"
                     @generate-code="handleGenerateCode"
+                    @query-task="handleQueryTask"
                     @show-notification="showNotification"
                 />
 
@@ -105,6 +106,15 @@
             @close="isCodeModalOpen = false"
         />
 
+        <TaskQueryModal
+            :is-open="isQueryModalOpen"
+            :loading="queryLoading"
+            :answer="queryAnswer"
+            :error="queryError"
+            @close="isQueryModalOpen = false"
+            @submit="handleQueryTaskSubmit"
+        />
+
         <!-- Global Toast Notification -->
         <div
             v-if="notification"
@@ -114,6 +124,11 @@
                 :class="`alert alert-${notification.type}`"
             >
                 <span>{{ notification.message }}</span>
+                <div
+                    v-if="notification.details"
+                    class="text-xs opacity-80 mt-1 whitespace-pre-wrap">
+                    {{ notification.details }}
+                </div>
             </div>
         </div>
 
@@ -125,6 +140,7 @@ import { ref } from 'vue';
 import KanbanBoard from './components/KanbanBoard.vue';
 import ProjectSidebar from './components/ProjectSidebar.vue';
 import CodeGenerationModal from './components/modals/CodeGenerationModal.vue';
+import TaskQueryModal from './components/modals/TaskQueryModal.vue';
 import { api } from './services/api';
 
 const loading = ref(false);
@@ -145,11 +161,18 @@ const codeLoading = ref(false);
 const generatedCode = ref('');
 const codeError = ref('');
 
+// Query Modal State
+const isQueryModalOpen = ref(false);
+const queryLoading = ref(false);
+const queryAnswer = ref('');
+const queryError = ref('');
+const queryTaskTarget = ref(null);
+
 // Global Notification State
 const notification = ref(null);
 
-const showNotification = (message, type = 'info') => {
-    notification.value = { message, type };
+const showNotification = (message, type = 'info', details = null) => {
+    notification.value = { message, type, details };
     setTimeout(() => {
         notification.value = null;
     }, 3000);
@@ -176,7 +199,7 @@ const refreshTasks = async () => {
         const allTasks = await api.getKanbanTasks(currentProject.value);
         tasks.value = allTasks;
     } catch (e) {
-        error.value = e.message;
+        error.value = e.response?.data?.error || e.message;
     } finally {
         loading.value = false;
     }
@@ -189,9 +212,12 @@ const handleDecompose = async (task) => {
     try {
         await api.decomposeTask(task.id, task.description);
         await refreshTasks();
-        alert("Task decomposed successfully!");
+        showNotification("Task decomposed successfully!", "success");
     } catch (e) {
-        alert("Failed to decompose task: " + e.message);
+        const errorMsg = e.response?.data?.error || e.message;
+        const mainMsg = errorMsg.split(' - Response:')[0];
+        const details = errorMsg.includes(' - Response:') ? errorMsg.split(' - Response:')[1] : null;
+        showNotification("Failed to decompose task: " + mainMsg, "error", details);
     } finally {
         loading.value = false;
     }
@@ -211,11 +237,39 @@ const handleGenerateCode = async (task) => {
             codeError.value = res.error || "Failed to generate code.";
         }
     } catch (e) {
-        codeError.value = e.message;
+        codeError.value = e.response?.data?.error || e.message;
     } finally {
         codeLoading.value = false;
         // Refresh to show robot icon
         await refreshTasks();
+    }
+};
+
+const handleQueryTask = (task) => {
+    queryTaskTarget.value = task;
+    isQueryModalOpen.value = true;
+    queryAnswer.value = '';
+    queryError.value = '';
+};
+
+const handleQueryTaskSubmit = async (query) => {
+    if (!queryTaskTarget.value) return;
+
+    queryLoading.value = true;
+    queryAnswer.value = '';
+    queryError.value = '';
+
+    try {
+        const res = await api.queryTask(queryTaskTarget.value.id, query);
+        if (res.success && res.answer) {
+            queryAnswer.value = res.answer;
+        } else {
+            queryError.value = res.error || "Failed to get an answer.";
+        }
+    } catch (e) {
+        queryError.value = e.response?.data?.error || e.message;
+    } finally {
+        queryLoading.value = false;
     }
 };
 </script>
