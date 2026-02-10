@@ -184,4 +184,31 @@ class TaskService
         }
         return $count;
     }
+
+    public function queryTask(int $taskId, string $query, string $apiKey): string
+    {
+        $stmt = $this->pdo->prepare("SELECT description, po_comments FROM tasks WHERE id = :id");
+        $stmt->execute([':id' => $taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$task) {
+            throw new TaskNotFoundException("Task not found.");
+        }
+
+        $context = "Task: " . $task['description'];
+        if (!empty($task['po_comments'])) {
+            $context .= "\nContext/Comments: " . $task['po_comments'];
+        }
+
+        $prompt = "You are TAIPO, an intelligent coding assistant. Refrain from lengthy intros.
+        Context:
+        {$context}
+
+        User Question:
+        {$query}
+
+        Answer the user's question specifically related to this task. Provide code snippets if asked.";
+
+        return Utils::callGeminiAPI($apiKey, $prompt);
+    }
 }

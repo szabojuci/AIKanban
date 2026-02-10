@@ -46,6 +46,7 @@
                         @task-updated="$emit('task-updated')"
                         @decompose="$emit('decompose', element)"
                         @generate-code="$emit('generate-code', element)"
+                        @query-task="$emit('query-task', element)"
                     />
                 </template>
             </draggable>
@@ -110,6 +111,7 @@ const emit = defineEmits([
     "decompose",
     "generate-code",
     "show-notification",
+    "query-task",
 ]);
 
 const isTaskModalOpen = ref(false);
@@ -195,7 +197,7 @@ const handleAddTask = async (payload) => {
         await api.addTask(props.currentProject, description, priority);
         emit("task-added");
     } catch (e) {
-        alert("Failed to add task: " + e.message);
+        alert("Failed to add task: " + (e.response?.data?.error || e.message));
     }
 };
 
@@ -243,7 +245,7 @@ const handleTaskDeleted = async () => {
         emit("task-deleted", taskToDelete.value.id); // Or just trigger refresh
     } catch (e) {
         console.error("Failed to delete task", e);
-        alert("Failed to delete task: " + e.message);
+        alert("Failed to delete task: " + (e.response?.data?.error || e.message));
     } finally {
         isDeleteModalOpen.value = false;
         taskToDelete.value = null;

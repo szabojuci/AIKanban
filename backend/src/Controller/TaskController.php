@@ -6,6 +6,7 @@ use App\Service\TaskService;
 use App\Config;
 use App\Exception\WipLimitExceededException;
 use App\Utils;
+use App\Exception\GeminiApiException;
 use Exception;
 
 class TaskController
@@ -158,6 +159,10 @@ class TaskController
             $rawText = Utils::callGeminiAPI($apiKey, $prompt);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'code' => Utils::formatCodeBlocks($rawText)]);
+        } catch (GeminiApiException $e) {
+            $code = $e->getCode() ?: 500;
+            http_response_code($code);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         } catch (Exception $e) {
             http_response_code(500);
             error_log("Code generation error: " . $e->getMessage());
@@ -183,9 +188,45 @@ class TaskController
             $count = $this->taskService->decomposeTask($desc, $currentProjectName, $apiKey);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'count' => $count]);
+        } catch (GeminiApiException $e) {
+            $code = $e->getCode() ?: 500;
+            http_response_code($code);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         } catch (Exception $e) {
             http_response_code(500);
             echo json_encode(['success' => false, 'error' => "Error: " . $e->getMessage()]);
+        }
+    }
+
+    public function handleQueryTask($apiKey)
+    {
+        $taskId = $_POST['task_id'] ?? null;
+        $query = trim($_POST['query'] ?? '');
+
+        if (empty($taskId) || empty($query)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => "Task ID and query are required."]);
+            return;
+        }
+
+        if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => "Error: Gemini API key is not set."]);
+            return;
+        }
+
+        try {
+            $answer = $this->taskService->queryTask($taskId, $query, $apiKey);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'answer' => $answer]);
+        } catch (GeminiApiException $e) {
+            $code = $e->getCode() ?: 500;
+            http_response_code($code);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            error_log("Query task error: " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => "Gemini API error: " . $e->getMessage()]);
         }
     }
     public function handleReorderTasks()

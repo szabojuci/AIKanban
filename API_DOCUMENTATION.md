@@ -27,9 +27,12 @@ Error Mockup:
 ```json
 {
   "success": false,
-  "error": "Error description"
+  "error": "Error description (e.g. API Error: INVALID_API_KEY)"
 }
 ```
+
+> [!NOTE]
+> The backend now returns appropriate HTTP status codes (e.g., 400 for bad requests, 403 for WIP limits, 502 for AI failures) instead of a generic 500.
 
 ## Endpoints
 
@@ -48,6 +51,7 @@ Error Mockup:
 | `decompose_task` | `description`, `current_project` | Uses Gemini AI to break down a large story into subtasks. |
 | `commit_to_github` | `task_id`, `code`, `description`, `user_token` (opt), `user_username` (opt) | Commits the generated code to the configured GitHub repository. |
 | `reorder_tasks` | `project_name`, `status`, `task_ids` (array) | Reorders tasks within a specific column/status. |
+| `query_task` | `task_id`, `query` | Uses Gemini AI to answer a question about a specific task. |
 
 ### 2. Project Management
 
