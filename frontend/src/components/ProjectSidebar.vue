@@ -292,7 +292,7 @@ const handleGenerate = async () => {
         await fetchProjects();
         selectProjectByName(projectName.value);
     } catch (e) {
-        alert("Error generating project: " + e.message);
+        alert("Error generating project: " + (e.response?.data?.error || e.message));
     } finally {
         loading.value = false;
     }

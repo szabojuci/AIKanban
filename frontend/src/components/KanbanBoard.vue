@@ -9,8 +9,8 @@
             <div
                 :class="`p-4 rounded-t-box font-bold flex justify-between items-center bg-${getResultingColor(style)} text-primary-content`"
             >
-                <span>{{ title }}</span>
-                <div class="badge badge-ghost">
+                <span>{{ formatColumnTitle(title) }}</span>
+                <div v-if="parseWipLimit(title) === Infinity" class="badge badge-ghost">
                     {{ tasks[title]?.length || 0 }}
                 </div>
             </div>
@@ -46,6 +46,7 @@
                         @task-updated="$emit('task-updated')"
                         @decompose="$emit('decompose', element)"
                         @generate-code="$emit('generate-code', element)"
+                        @query-task="$emit('query-task', element)"
                     />
                 </template>
             </draggable>
@@ -85,6 +86,7 @@
                 @confirm="handleTaskDeleted"
             />
         </Teleport>
+
     </div>
 </template>
 
@@ -108,6 +110,8 @@ const emit = defineEmits([
     "task-added",
     "decompose",
     "generate-code",
+    "show-notification",
+    "query-task",
 ]);
 
 const isTaskModalOpen = ref(false);
@@ -119,17 +123,55 @@ const getResultingColor = (style) => {
 };
 
 const onDraggableChange = async (event, newStatus) => {
+    let task = null;
+    let needsUpdate = false;
+
+    // Handle 'added' (moved from another column)
     if (event.added) {
-        const task = event.added.element;
+        task = event.added.element;
+        needsUpdate = true;
+    }
+    // Handle 'moved' (reordered within same column)
+    else if (event.moved) {
+        task = event.moved.element;
+        needsUpdate = true;
+    }
+
+    const limit = parseWipLimit(newStatus);
+    if (limit !== Infinity && props.tasks[newStatus].length > limit) {
+        emit("show-notification", `WIP limit of ${limit} reached for column "${formatColumnTitle(newStatus)}"!`, 'error');
+        emit("task-updated"); // Revert UI by refreshing from server
+        return;
+    }
+
+    if (needsUpdate && task) {
+        // Get the new order of IDs in this column
+        const newTaskIds = props.tasks[newStatus].map(t => t.id);
+
         try {
-            await api.updateStatus(task.id, newStatus, props.currentProject);
+            // We use reorderTasks for both cases because it updates status AND position
+            await api.reorderTasks(props.currentProject, newStatus, newTaskIds);
             emit("task-updated");
         } catch (e) {
-            console.error("Failed to update status", e);
-            alert(e.response?.data?.error || "Failed to move task");
+            console.error("Failed to update status/order", e);
+            alert(e.response?.data?.error || "Failed to move/reorder task");
             emit("task-updated"); // Revert by refreshing from server
         }
     }
+};
+
+const parseWipLimit = (columnTitle) => {
+    const match = columnTitle.match(/WIP:(\d+)/);
+    return match ? Number.parseInt(match[1], 10) : Infinity;
+};
+
+const formatColumnTitle = (title) => {
+    const limit = parseWipLimit(title);
+    if (limit === Infinity) return title;
+
+    const baseTitle = title.replace(/WIP:\d+/, '').trim();
+    const count = props.tasks[title]?.length || 0;
+    return `${baseTitle} - WIP: ${count} / ${limit}`;
 };
 
 const openAddTaskModal = () => {
@@ -155,7 +197,7 @@ const handleAddTask = async (payload) => {
         await api.addTask(props.currentProject, description, priority);
         emit("task-added");
     } catch (e) {
-        alert("Failed to add task: " + e.message);
+        alert("Failed to add task: " + (e.response?.data?.error || e.message));
     }
 };
 
@@ -203,7 +245,7 @@ const handleTaskDeleted = async () => {
         emit("task-deleted", taskToDelete.value.id); // Or just trigger refresh
     } catch (e) {
         console.error("Failed to delete task", e);
-        alert("Failed to delete task: " + e.message);
+        alert("Failed to delete task: " + (e.response?.data?.error || e.message));
     } finally {
         isDeleteModalOpen.value = false;
         taskToDelete.value = null;

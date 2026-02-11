@@ -78,6 +78,9 @@ class Application
                 case 'update_status':
                     $this->taskController->handleUpdateStatus();
                     exit;
+                case 'reorder_tasks':
+                    $this->taskController->handleReorderTasks();
+                    exit;
                 case 'edit_task':
                     $this->taskController->handleEditTask();
                     exit;
@@ -92,6 +95,9 @@ class Application
                     exit;
                 case 'commit_to_github':
                     $this->handleCommitToGithub();
+                    exit;
+                case 'query_task':
+                    $this->taskController->handleQueryTask($apiKey);
                     exit;
 
                     // Project Actions

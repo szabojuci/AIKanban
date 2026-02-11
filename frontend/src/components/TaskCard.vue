@@ -73,9 +73,7 @@
                             ></path>
                         </svg>
                     </button>
-                    <ul
-                        class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52"
-                    >
+                    <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
                         <li>
                             <button
                                 @click.prevent="enableEdit"
@@ -101,6 +99,14 @@
                         </li>
                         <li>
                             <button
+                                @click.prevent="$emit('query-task', task)"
+                                type="button"
+                            >
+                                ❓ Ask AI
+                            </button>
+                        </li>
+                        <li>
+                            <button
                                 @click.prevent="requestDelete"
                                 type="button"
                                 class="text-error"
@@ -121,14 +127,17 @@
             </div>
 
             <!-- Description / Inline Edit -->
-            <div v-if="isEditing">
+            <div
+                v-if="isEditing"
+            >
                 <textarea
                     v-model="editDescription"
                     @blur="saveEdit"
                     @keydown.enter.exact.prevent="saveEdit"
                     ref="editInput"
                     class="textarea textarea-bordered textarea-xs w-full"
-                ></textarea>
+                >
+                </textarea>
             </div>
             <p
                 v-else
@@ -170,6 +179,7 @@ const emit = defineEmits([
     "task-updated",
     "decompose",
     "generate-code",
+    "query-task",
 ]);
 
 const priority = computed(() => Number(props.task.is_important) || 0);

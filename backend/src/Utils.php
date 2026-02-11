@@ -108,33 +108,51 @@ class Utils
             ]
         ];
 
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [Config::APP_JSON]);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        // Use file_get_contents instead of curl
+        $options = [
+            'http' => [
+                'header'  => "Content-type: application/json\r\n",
+                'method'  => 'POST',
+                'content' => json_encode($data),
+                'timeout' => 60,
+                'ignore_errors' => true // to fetch error body
+            ],
+            "ssl" => [
+                "verify_peer" => true,
+                "verify_peer_name" => true,
+            ]
+        ];
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
+        $context  = stream_context_create($options);
+        $response = @file_get_contents($url, false, $context);
 
         if ($response === false) {
-            throw new GeminiApiException("cURL error: " . $curlError);
+            $error = error_get_last();
+            throw new GeminiApiException("Request failed: " . ($error['message'] ?? 'Unknown network error'));
+        }
+
+        // Parse headers to get status code
+        $httpCode = 0;
+        if (isset($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('#HTTP/[\d\.]+\s+(\d+)#', $header, $matches)) {
+                    $httpCode = intval($matches[1]);
+                    break;
+                }
+            }
         }
 
         $result = json_decode($response, true);
 
         if ($httpCode !== 200) {
             $errorMessage = $result['error']['message'] ?? 'Unknown error';
-            throw new GeminiApiException("API error ({$httpCode}): " . $errorMessage . " - Response: " . $response);
+            // Pass httpCode as exception code
+            throw new GeminiApiException("API error: " . $errorMessage, $httpCode);
         }
 
         if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
             $blockReason = $result['candidates'][0]['finishReason'] ?? 'unknown';
-            throw new GeminiApiException("API response format error (or blocked). Reason: " . $blockReason . ". Response: " . substr($response, 0, 500));
+            throw new GeminiApiException("API response blocked or invalid format. Reason: " . $blockReason, 502);
         }
 
         return $result['candidates'][0]['content']['parts'][0]['text'];
