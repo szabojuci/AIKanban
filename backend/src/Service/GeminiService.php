@@ -29,10 +29,10 @@ class GeminiService
                 ]
             ],
             'generationConfig' => [
-                'temperature' => 0.7,
-                'topK' => 40,
-                'topP' => 0.95,
-                'maxOutputTokens' => 4096,
+                'temperature' => Config::getGeminiTemperature(),
+                'topK' => Config::getGeminiTopK(),
+                'topP' => Config::getGeminiTopP(),
+                'maxOutputTokens' => Config::getGeminiMaxOutputTokens(),
             ]
         ];
 
