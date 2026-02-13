@@ -33,4 +33,9 @@ class Config
 
         return "{$baseUrl}/models/{$model}:generateContent?key={$apiKey}";
     }
+
+    public static function getGithubUserAgent(): string
+    {
+        return "User-Agent: " . $_ENV['GITHUB_USERAGENT'];
+    }
 }
