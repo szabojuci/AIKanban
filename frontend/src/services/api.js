@@ -17,18 +17,12 @@ export const api = {
         return response.data.tasks;
     },
 
-    async addTask(project, description, priority = 0) {
-        const formData = new FormData();
-        formData.append('action', 'add_task');
-        formData.append('current_project', project);
-        formData.append('description', description);
-        formData.append('is_important', priority);
-
+    async addTask(project, title, description, priority = 0) {
         // PHP expects POST form-data or JSON with specific structure.
-        // Let's stick to JSON since we handle it in Application.php (lines 68-75)
         return client.post('/', {
             action: 'add_task',
             current_project: project,
+            title: title,
             description: description,
             is_important: priority
         });
@@ -65,34 +59,38 @@ export const api = {
     },
 
     async generateTasks(projectName, prompt) {
-        return client.post('/', {
+        const response = await client.post('/', {
             project_name: projectName,
             ai_prompt: prompt
         });
+        return response.data;
     },
 
-    async editTask(taskId, description) {
+    async editTask(taskId, title, description) {
         return client.post('/', {
             action: 'edit_task',
             task_id: taskId,
+            title: title,
             description: description
         });
     },
 
     async generateCode(taskId, description) {
-        return client.post('/', {
+        const response = await client.post('/', {
             action: 'generate_java_code',
             task_id: taskId,
             description: description
         });
+        return response.data;
     },
 
     async decomposeTask(taskId, description) {
-        return client.post('/', {
+        const response = await client.post('/', {
             action: 'decompose_task',
             task_id: taskId,
             description: description
         });
+        return response.data;
     },
 
     async reorderTasks(projectName, status, taskIds) {
@@ -140,10 +138,11 @@ export const api = {
     },
 
     async queryTask(taskId, query) {
-        return client.post('/', {
+        const response = await client.post('/', {
             action: 'query_task',
             task_id: taskId,
             query: query
         });
+        return response.data;
     }
 };

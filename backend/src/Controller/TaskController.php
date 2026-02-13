@@ -20,15 +20,17 @@ class TaskController
 
     public function handleAddTask()
     {
+        $newTitle = trim($_POST['title'] ?? '');
         $newTaskDescription = trim($_POST['description'] ?? '');
         $projectForAdd = trim($_POST['current_project'] ?? '');
         $isImportant = (int)($_POST['is_important'] ?? 0);
 
-        if (!empty($newTaskDescription) && !empty($projectForAdd)) {
+        if (!empty($newTitle) && !empty($projectForAdd)) {
             try {
-                $newId = $this->taskService->addTask($projectForAdd, $newTaskDescription, $isImportant);
+                // If description is empty, that's fine now, title is required.
+                $newId = $this->taskService->addTask($projectForAdd, $newTitle, $newTaskDescription, $isImportant);
                 header(Config::APP_JSON);
-                echo json_encode(['success' => true, 'id' => $newId, 'description' => $newTaskDescription, 'is_important' => $isImportant]);
+                echo json_encode(['success' => true, 'id' => $newId, 'title' => $newTitle, 'description' => $newTaskDescription, 'is_important' => $isImportant]);
             } catch (Exception $e) {
                 http_response_code(500);
                 error_log("Error adding task: " . $e->getMessage());
@@ -36,7 +38,7 @@ class TaskController
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Project name and task description are required."]);
+            echo json_encode(['success' => false, 'error' => "Project name and task title are required."]);
         }
     }
 
@@ -119,33 +121,28 @@ class TaskController
     public function handleEditTask()
     {
         $taskId = $_POST['task_id'] ?? null;
+        $newTitle = trim($_POST['title'] ?? '');
         $newDescription = trim($_POST['description'] ?? '');
 
-        if (is_numeric($taskId) && !empty($newDescription)) {
+        if (is_numeric($taskId) && !empty($newTitle)) {
             try {
-                $this->taskService->updateDescription((int)$taskId, $newDescription);
+                $this->taskService->updateTask((int)$taskId, $newTitle, $newDescription);
                 header(Config::APP_JSON);
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
                 http_response_code(500);
-                error_log("Error updating task description: " . $e->getMessage());
-                echo json_encode(['success' => false, 'error' => "Server error during description update."]);
+                error_log("Error updating task: " . $e->getMessage());
+                echo json_encode(['success' => false, 'error' => "Server error during task update."]);
             }
         } else {
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or empty description."]);
+            echo json_encode(['success' => false, 'error' => "Error: Invalid ID or empty title."]);
         }
     }
 
-    public function handleGenerateJavaCode($apiKey)
+    public function handleGenerateJavaCode()
     {
         $description = trim($_POST['description'] ?? '');
-
-        if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => "Error: Gemini API key is not set."]);
-            return;
-        }
 
         if (empty($description)) {
             http_response_code(400);
@@ -153,12 +150,10 @@ class TaskController
             return;
         }
 
-        $prompt = "Generate a **complete, but very concise** Java class or function to solve the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```java ... ```).";
-
         try {
-            $rawText = Utils::callGeminiAPI($apiKey, $prompt);
+            $formattedCode = $this->taskService->generateJavaCode($description);
             header(Config::APP_JSON);
-            echo json_encode(['success' => true, 'code' => Utils::formatCodeBlocks($rawText)]);
+            echo json_encode(['success' => true, 'code' => $formattedCode]);
         } catch (GeminiApiException $e) {
             $code = $e->getCode() ?: 500;
             http_response_code($code);
@@ -170,7 +165,7 @@ class TaskController
         }
     }
 
-    public function handleDecomposeTask($apiKey)
+    public function handleDecomposeTask()
     {
         // ProjectID isn't actually used by service decompose,
         // but the current implementation requires project name to decompose into.
@@ -185,7 +180,7 @@ class TaskController
         }
 
         try {
-            $count = $this->taskService->decomposeTask($desc, $currentProjectName, $apiKey);
+            $count = $this->taskService->decomposeTask($desc, $currentProjectName);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'count' => $count]);
         } catch (GeminiApiException $e) {
@@ -198,7 +193,7 @@ class TaskController
         }
     }
 
-    public function handleQueryTask($apiKey)
+    public function handleQueryTask()
     {
         $taskId = $_POST['task_id'] ?? null;
         $query = trim($_POST['query'] ?? '');
@@ -209,14 +204,8 @@ class TaskController
             return;
         }
 
-        if (empty($apiKey) || strpos($apiKey, 'AIza') !== 0) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => "Error: Gemini API key is not set."]);
-            return;
-        }
-
         try {
-            $answer = $this->taskService->queryTask($taskId, $query, $apiKey);
+            $answer = $this->taskService->queryTask($taskId, $query);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'answer' => $answer]);
         } catch (GeminiApiException $e) {

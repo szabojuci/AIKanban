@@ -30,14 +30,20 @@ For detailed API usage, please refer to the [Developer API Documentation](API_DO
 
 ### 3. Configuration
 
-Create a file named `.env` in the root folder and paste the following:
+Copy the `.env.example` file to `.env`. This file is located in the `backend` directory. Fill in the following:
 
 ```env
-GEMINI_API_KEY=your_google_gemini_key_here
-GEMINI_MODEL="gemini-3-flash"
-GITHUB_USERNAME=your_github_username
-GITHUB_REPO=your_target_repository_name
+GEMINI_API_KEY="your_google_gemini_api_key_here"
+GITHUB_USERNAME="your_github_username"
+GITHUB_REPO="your_github_repository_name"
+GITHUB_TOKEN="your_github_personal_access_token"
 ```
+
+You can change your `GEMINI_FALLBACK_MODEL` to another model if you want to use a different model. I gave you two models, one is commented out.  
+At the moment `GEMINI_BASE_URL` and `GEMINI_FALLBACK_URL` are the same, but they can be different. I just prepared it for future use in case of changes in the API.  
+**TAIPO** settings are optional, but recommended for better performance. In case of missing or incorrect settings, the app will use default values which are built-in (see [Config.php](backend/src/Config.php)).
+
+---
 
 ### 4. 🎮 How to Use the App
 
