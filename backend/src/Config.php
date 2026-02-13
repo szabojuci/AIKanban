@@ -4,7 +4,10 @@ namespace App;
 
 class Config
 {
-    public const PROJECT_NAME = 'AIKanban';
+    public static function getProjectName(): string
+    {
+        return $_ENV['PROJECT_NAME'];
+    }
     public const APP_JSON = 'Content-Type: application/json';
 
     public static function getGeminiBaseUrl(): string
