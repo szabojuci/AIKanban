@@ -226,7 +226,18 @@ class TaskService
 
         Answer the user's question specifically related to this task. Provide code snippets if asked.";
 
-        return $this->geminiService->askTaipo($prompt);
+        $answer = $this->geminiService->askTaipo($prompt);
+
+        // Persist the Q&A to po_comments
+        $currentComments = $task['po_comments'] ?? '';
+        $separator = $currentComments ? "\n\n---\n\n" : "";
+        $newEntry = "**Q:** {$query}\n**A:** {$answer}";
+        $newComments = $currentComments . $separator . $newEntry;
+
+        $updateStmt = $this->pdo->prepare("UPDATE tasks SET po_comments = :comments WHERE id = :id");
+        $updateStmt->execute([':comments' => $newComments, ':id' => $taskId]);
+
+        return $answer;
     }
 
     public function generateJavaCode(string $description): string
