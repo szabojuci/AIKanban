@@ -139,7 +139,10 @@
                 class="mt-2 text-xs bg-base-300 p-2 rounded border border-base-content/10"
             >
                 <div class="font-bold mb-1 opacity-70">🤖 TAIPO Feedback</div>
-                {{ task.po_comments }}
+                <div
+                    v-html="formattedPoComments"
+                >
+                </div>
             </div>
 
             <div
@@ -169,6 +172,24 @@ const emit = defineEmits([
     "query-task",
     "request-edit",
 ]);
+
+const formattedPoComments = computed(() => {
+    if (!props.task.po_comments) return "";
+    let text = props.task.po_comments;
+    // Escape HTML (basic)
+    text = text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+    // Bold: **text** -> <b>text</b>
+    text = text.replaceAll(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+
+    // Separator: --- -> <hr>
+    text = text.replaceAll("\n\n---\n\n", '<hr class="my-2 border-base-content/20" />');
+
+    // Newlines: \n -> <br>
+    text = text.replaceAll("\n", "<br>");
+
+    return text;
+});
 
 const priority = computed(() => Number(props.task.is_important) || 0);
 // Removed inline editing state
