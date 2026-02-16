@@ -5,16 +5,19 @@ namespace App\Service;
 use PDO;
 use Exception;
 use App\Utils;
+use App\Service\GeminiService;
 use App\Exception\TaskNotFoundException;
 use App\Exception\WipLimitExceededException;
 
 class TaskService
 {
     private PDO $pdo;
+    private GeminiService $geminiService;
 
-    public function __construct(PDO $pdo)
+    public function __construct(PDO $pdo, GeminiService $geminiService)
     {
         $this->pdo = $pdo;
+        $this->geminiService = $geminiService;
     }
 
     public function getProjects(): array
@@ -25,7 +28,7 @@ class TaskService
 
     public function getTasksByProject(string $projectName): array
     {
-        $stmt = $this->pdo->prepare("SELECT id, description, status, is_important, generated_code, is_subtask, po_comments, position FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
         $stmt->execute([':projectName' => $projectName]);
         $tasks = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -61,11 +64,12 @@ class TaskService
         }
     }
 
-    public function addTask(string $projectName, string $description, int $isImportant = 0): int
+    public function addTask(string $projectName, string $title, string $description, int $isImportant = 0): int
     {
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status, is_important) VALUES (:project_name, :description, 'SPRINT BACKLOG', :is_important)");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_important) VALUES (:project_name, :title, :description, 'SPRINT BACKLOG', :is_important)");
         $stmt->execute([
             ':project_name' => $projectName,
+            ':title' => $title,
             ':description' => $description,
             ':is_important' => $isImportant
         ]);
@@ -98,10 +102,11 @@ class TaskService
         ]);
     }
 
-    public function updateDescription(int $taskId, string $description): void
+    public function updateTask(int $taskId, string $title, string $description): void
     {
-        $stmt = $this->pdo->prepare("UPDATE tasks SET description = :description WHERE id = :id");
+        $stmt = $this->pdo->prepare("UPDATE tasks SET title = :title, description = :description WHERE id = :id");
         $stmt->execute([
+            ':title' => $title,
             ':description' => $description,
             ':id' => $taskId
         ]);
@@ -140,14 +145,25 @@ class TaskService
             $stmt->execute([':projectName' => $projectName]);
 
             $insertStmt = $this->pdo->prepare(
-                "INSERT INTO tasks (project_name, description, status) VALUES (:project_name, :description, :status)"
+                "INSERT INTO tasks (project_name, title, description, status) VALUES (:project_name, :title, :description, :status)"
             );
 
             $count = 0;
             foreach ($newTasks as $task) {
+                // Fallback for replaceProjectTasks if source doesn't have title
+                $tTitle = $task['title'] ?? '';
+                $tDesc = $task['description'] ?? '';
+                if (empty($tTitle) && !empty($tDesc)) {
+                    // Simple split if only description is present
+                    $lines = explode("\n", $tDesc);
+                    $tTitle = trim($lines[0]);
+                    $tDesc = count($lines) > 1 ? trim(implode("\n", array_slice($lines, 1))) : '';
+                }
+
                 $insertStmt->execute([
                     ':project_name' => $projectName,
-                    ':description' => $task['description'],
+                    ':title' => $tTitle,
+                    ':description' => $tDesc,
                     ':status' => $task['status']
                 ]);
                 $count++;
@@ -163,29 +179,30 @@ class TaskService
         }
     }
 
-    public function decomposeTask(string $description, string $projectName, string $apiKey): int
+    public function decomposeTask(string $description, string $projectName): int
     {
         $prompt = "Decompose this user story into 3-5 concrete, executable technical tasks: '{$description}'.
                     Your response must ONLY be the list of tasks, with each task on a new line.";
 
-        $rawTasks = Utils::callGeminiAPI($apiKey, $prompt);
+        $rawTasks = $this->geminiService->askTaipo($prompt);
         $lines = explode("\n", $rawTasks);
         $count = 0;
 
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, description, status, is_subtask, po_comments) VALUES (?, ?, 'SPRINT BACKLOG', 1, ?)");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_subtask, po_comments) VALUES (?, ?, ?, 'SPRINT BACKLOG', 1, ?)");
 
         $poFeedback = "TAIPO: Based on original story: \"{$description}\"";
 
         foreach ($lines as $line) {
             if (trim($line)) {
-                $stmt->execute([$projectName, trim($line), $poFeedback]);
+                // Generated tasks are usually short one-liners. Use as title.
+                $stmt->execute([$projectName, trim($line), "", $poFeedback]);
                 $count++;
             }
         }
         return $count;
     }
 
-    public function queryTask(int $taskId, string $query, string $apiKey): string
+    public function queryTask(int $taskId, string $query): string
     {
         // 1. Fetch current task details INCLUDING project_name
         $stmt = $this->pdo->prepare("SELECT description, po_comments, project_name, status FROM tasks WHERE id = :id");
@@ -237,6 +254,25 @@ class TaskService
         - Refrain from lengthy intros.
         - Provide code snippets if asked.";
 
-        return Utils::callGeminiAPI($apiKey, $prompt);
+        $answer = $this->geminiService->askTaipo($prompt);
+
+        // Persist the Q&A to po_comments
+        $currentComments = $task['po_comments'] ?? '';
+        $separator = $currentComments ? "\n\n---\n\n" : "";
+        $newEntry = "**Q:** {$query}\n**A:** {$answer}";
+        $newComments = $currentComments . $separator . $newEntry;
+
+        $updateStmt = $this->pdo->prepare("UPDATE tasks SET po_comments = :comments WHERE id = :id");
+        $updateStmt->execute([':comments' => $newComments, ':id' => $taskId]);
+
+        return $answer;
+    }
+
+    public function generateJavaCode(string $description): string
+    {
+        $prompt = "Generate a **complete, but very concise** Java class or function to solve the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```java ... ```).";
+
+        $rawText = $this->geminiService->askTaipo($prompt);
+        return Utils::formatCodeBlocks($rawText);
     }
 }
