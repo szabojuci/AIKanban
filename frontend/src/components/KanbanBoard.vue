@@ -1,9 +1,9 @@
 <template>
-    <div class="flex flex-nowrap overflow-x-auto gap-4 h-[calc(100vh-140px)]">
+    <div class="flex flex-nowrap overflow-x-auto gap-4 min-h-[calc(100vh-140px)]">
         <div
             v-for="(style, title) in columns"
             :key="title"
-            class="min-w-[280px] flex flex-col bg-base-100 rounded-box shadow-xl h-full"
+            class="min-w-[280px] flex flex-col bg-base-100 rounded-box shadow-xl"
         >
             <!-- Column Header -->
             <div
@@ -36,7 +36,7 @@
                 group="tasks"
                 ghost-class="opacity-50"
                 item-key="id"
-                class="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-[100px]"
+                class="flex-1 p-3 flex flex-col gap-3 min-h-[100px]"
             >
                 <template #item="{ element }">
                     <TaskCard
