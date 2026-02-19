@@ -179,10 +179,69 @@ class TaskService
         }
     }
 
+    public function generateProjectTasks(string $projectName, string $rawPrompt): int
+    {
+        $prompt = str_replace('{{PROJECT_NAME}}', $projectName, $rawPrompt);
+        $prompt .= "\n\nPlease generate a list of user stories for this project.
+                    Each user story must follow the standard format: 'As a [user], I want to [action], so that [benefit]'.
+                    Format each line as: [STATUS]: User Story Text
+                    Available statuses: SPRINTBACKLOG, IMPLEMENTATION, TESTING, REVIEW, DONE.
+                    Example: [SPRINTBACKLOG]: As a user, I want to log in, so that I can access my profile.";
+
+        $rawText = $this->geminiService->askTaipo($prompt);
+        $lines = explode("\n", $rawText);
+        $newTasks = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            $status = 'SPRINTBACKLOG';
+            $description = $line;
+
+            if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*)/iu', $line, $matches)) {
+                $rawStatus = strtoupper($matches[1]);
+                $description = trim($matches[2]);
+
+                switch ($rawStatus) {
+                    case 'SPRINTBACKLOG':
+                        $status = 'SPRINT BACKLOG';
+                        break;
+                    case 'IMPLEMENTATION':
+                        $status = 'IMPLEMENTATION WIP:3';
+                        break;
+                    case 'TESTING':
+                        $status = 'TESTING WIP:2';
+                        break;
+                    case 'REVIEW':
+                        $status = 'REVIEW WIP:2';
+                        break;
+                    case 'DONE':
+                        $status = 'DONE';
+                        break;
+                    default:
+                        $status = 'SPRINT BACKLOG'; // Safe fallback
+                }
+            }
+
+            if (!empty($description) && strlen($description) > 5) {
+                $newTasks[] = [
+                    'description' => $description,
+                    'status' => $status
+                ];
+            }
+        }
+
+        return $this->replaceProjectTasks($projectName, $newTasks);
+    }
+
     public function decomposeTask(string $description, string $projectName): int
     {
-        $prompt = "Decompose this user story into 3-5 concrete, executable technical tasks: '{$description}'.
-                    Your response must ONLY be the list of tasks, with each task on a new line.";
+        $prompt = "Decompose this user story into 3-5 concrete technical subtasks: '{$description}'.
+                    Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.
+                    Your response must ONLY be the list of tasks, with each task on a new line. Do not include statuses.";
 
         $rawTasks = $this->geminiService->askTaipo($prompt);
         $lines = explode("\n", $rawTasks);
@@ -193,9 +252,10 @@ class TaskService
         $poFeedback = "TAIPO: Based on original story: \"{$description}\"";
 
         foreach ($lines as $line) {
-            if (trim($line)) {
-                // Generated tasks are usually short one-liners. Use as title.
-                $stmt->execute([$projectName, trim($line), "", $poFeedback]);
+            $line = trim($line);
+            if ($line) {
+                // For subtasks, we'll use the user story as the title for now
+                $stmt->execute([$projectName, $line, "", $poFeedback]);
                 $count++;
             }
         }

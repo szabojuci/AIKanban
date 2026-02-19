@@ -93,6 +93,23 @@ class Application
                 case 'generate_java_code':
                     $this->taskController->handleGenerateJavaCode();
                     exit;
+                case 'generate_project_tasks':
+                    $projectName = $_POST['project_name'] ?? '';
+                    $aiPrompt = $_POST['ai_prompt'] ?? '';
+                    if (empty($projectName) || empty($aiPrompt)) {
+                        header(Config::APP_JSON, true, 400);
+                        echo json_encode(['success' => false, 'error' => 'Project name and prompt are required.']);
+                        exit;
+                    }
+                    try {
+                        $this->taskService->generateProjectTasks($projectName, $aiPrompt);
+                        echo json_encode(['success' => true]);
+                    } catch (Exception $e) {
+                        header(Config::APP_JSON, true, 502);
+                        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+                    }
+                    exit;
+
                 case 'decompose_task':
                     // We need project name here
                     $this->taskController->handleDecomposeTask();

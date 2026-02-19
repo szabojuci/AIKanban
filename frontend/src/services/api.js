@@ -60,6 +60,7 @@ export const api = {
 
     async generateTasks(projectName, prompt) {
         const response = await client.post('/', {
+            action: 'generate_project_tasks',
             project_name: projectName,
             ai_prompt: prompt
         });
