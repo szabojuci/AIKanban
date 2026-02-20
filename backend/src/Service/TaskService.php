@@ -8,6 +8,7 @@ use App\Utils;
 use App\Service\GeminiService;
 use App\Exception\TaskNotFoundException;
 use App\Exception\WipLimitExceededException;
+use App\Config;
 
 class TaskService
 {
@@ -66,7 +67,7 @@ class TaskService
 
     public function addTask(string $projectName, string $title, string $description, int $isImportant = 0): int
     {
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_important) VALUES (:project_name, :title, :description, 'SPRINT BACKLOG', :is_important)");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_important) VALUES (:project_name, :title, :description, '" . self::STATUS_SPRINT_BACKLOG . "', :is_important)");
         $stmt->execute([
             ':project_name' => $projectName,
             ':title' => $title,
@@ -179,23 +180,165 @@ class TaskService
         }
     }
 
+    public function generateProjectTasks(string $projectName, string $rawPrompt): int
+    {
+        $prompt = str_replace('{{PROJECT_NAME}}', $projectName, $rawPrompt);
+        $prompt .= "\n\nPlease generate a list of user stories for this project.
+                    Each user story must follow the standard format: 'As a [user], I want to [action], so that [benefit]'.
+                    Format each line as: [STATUS]: [Short Title] | [User Story Text]
+                    The Short Title must be under " . Config::getMaxTitleLength() . " characters.
+                    Available statuses: SPRINTBACKLOG, IMPLEMENTATION, TESTING, REVIEW, DONE.
+                    Example: [SPRINTBACKLOG]: Login Feature | As a user, I want to log in, so that I can access my profile.";
+
+        $rawText = $this->geminiService->askTaipo($prompt);
+        $lines = explode("\n", $rawText);
+        $newTasks = [];
+
+        foreach ($lines as $line) {
+            $taskData = $this->parseTaskLine($line);
+            if ($taskData) {
+                // Ensure all initially generated tasks start in the SPRINT BACKLOG,
+                // regardless of how the AI model labeled them.
+                $taskData['status'] = 'SPRINT BACKLOG';
+                $newTasks[] = $taskData;
+            }
+        }
+
+        return $this->replaceProjectTasks($projectName, $newTasks);
+    }
+
+    private function parseTaskLine(string $line): ?array
+    {
+        $line = trim($line);
+        if (empty($line)) {
+            return null;
+        }
+
+        $title = '';
+        $description = '';
+        $status = '';
+        $isValid = false;
+
+        if (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*?)\s*\|\s*(.*)/iu', $line, $matches)) {
+            $rawStatus = strtoupper($matches[1]);
+            $title = trim($matches[2]);
+            $description = trim($matches[3]);
+            $status = $this->mapStatus($rawStatus);
+            $isValid = true;
+        } elseif (preg_match('/^\[(SPRINTBACKLOG|IMPLEMENTATION|TESTING|REVIEW|DONE)\]:\s*(.*)/iu', $line, $matches)) {
+            $rawStatus = strtoupper($matches[1]);
+            $description = trim($matches[2]);
+            $maxLen = Config::getMaxTitleLength();
+            $title = substr($description, 0, $maxLen) . (strlen($description) > $maxLen ? '...' : '');
+            $status = $this->mapStatus($rawStatus);
+            $isValid = true;
+        }
+
+        if ($isValid && !empty($description)) {
+            return [
+                'title' => $title,
+                'description' => $description,
+                'status' => $status
+            ];
+        }
+        return null;
+    }
+
+    public const STATUS_SPRINT_BACKLOG = 'SPRINT BACKLOG';
+
+    private function mapStatus(string $rawStatus): string
+    {
+        $statusMap = [
+            'SPRINTBACKLOG' => self::STATUS_SPRINT_BACKLOG,
+            'IMPLEMENTATION' => 'IMPLEMENTATION WIP:3',
+            'TESTING' => 'TESTING WIP:2',
+            'REVIEW' => 'REVIEW WIP:2',
+            'DONE' => 'DONE'
+        ];
+
+        return $statusMap[$rawStatus] ?? self::STATUS_SPRINT_BACKLOG;
+    }
+
+    public function analyzeSpec(string $spec): array
+    {
+        $prompt = "Analyze the following project specification and:
+        1. Suggest a short, creative, and unique Project Name (max 5 words).
+        2. Extract a list of User Stories/Tasks. Each task must follow the format: 'As a [user], I want to [action], so that [benefit]'.
+
+        Specification:
+        {$spec}
+
+        Output format:
+        PROJECT_NAME: [Name]
+        [SPRINTBACKLOG]: [Short Title] | [User Story Text]
+        ...
+        The Short Title must be under {Config::getMaxTitleLength()} characters.
+        ";
+
+        $rawText = $this->geminiService->askTaipo($prompt);
+        $lines = explode("\n", $rawText);
+        $projectName = "New Project";
+        $newTasks = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) {
+                continue;
+            }
+
+            if (strpos($line, 'PROJECT_NAME:') === 0) {
+                $projectName = trim(substr($line, strlen('PROJECT_NAME:')));
+                // Remove quotes if present
+                $projectName = trim($projectName, '"\'');
+                continue;
+            }
+
+            $taskData = $this->parseTaskLine($line);
+            if ($taskData) {
+                // Ensure all spec-generated tasks start in the SPRINT BACKLOG
+                $taskData['status'] = self::STATUS_SPRINT_BACKLOG;
+                $newTasks[] = $taskData;
+            }
+        }
+
+        return [
+            'name' => $projectName,
+            'tasks' => $newTasks
+        ];
+    }
+
     public function decomposeTask(string $description, string $projectName): int
     {
-        $prompt = "Decompose this user story into 3-5 concrete, executable technical tasks: '{$description}'.
-                    Your response must ONLY be the list of tasks, with each task on a new line.";
+        $prompt = "Decompose this user story into 3-5 concrete technical subtasks: '{$description}'.
+                    Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.
+                    Format each line as: [Short Title] | [User Story Text]
+                    The Short Title must be under 40 characters.
+                    Do not include statuses.";
 
         $rawTasks = $this->geminiService->askTaipo($prompt);
         $lines = explode("\n", $rawTasks);
         $count = 0;
 
-        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_subtask, po_comments) VALUES (?, ?, ?, 'SPRINT BACKLOG', 1, ?)");
+        $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_subtask, po_comments) VALUES (?, ?, ?, '" . self::STATUS_SPRINT_BACKLOG . "', 1, ?)");
 
         $poFeedback = "TAIPO: Based on original story: \"{$description}\"";
 
         foreach ($lines as $line) {
-            if (trim($line)) {
-                // Generated tasks are usually short one-liners. Use as title.
-                $stmt->execute([$projectName, trim($line), "", $poFeedback]);
+            $line = trim($line);
+            if ($line) {
+                $title = '';
+                $taskDesc = $line;
+
+                if (strpos($line, '|') !== false) {
+                    $parts = explode('|', $line, 2);
+                    $title = trim($parts[0]);
+                    $taskDesc = trim($parts[1]);
+                } else {
+                    $maxLen = Config::getMaxTitleLength();
+                    $title = substr($line, 0, $maxLen) . (strlen($line) > $maxLen ? '...' : '');
+                }
+
+                $stmt->execute([$projectName, $title, $taskDesc, $poFeedback]);
                 $count++;
             }
         }
@@ -268,9 +411,9 @@ class TaskService
         return $answer;
     }
 
-    public function generateJavaCode(string $description): string
+    public function generateCode(string $description): string
     {
-        $prompt = "Generate a **complete, but very concise** Java class or function to solve the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```java ... ```).";
+        $prompt = "Generate a **complete, but very concise** solution (code) to the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
 
         $rawText = $this->geminiService->askTaipo($prompt);
         return Utils::formatCodeBlocks($rawText);

@@ -10,6 +10,19 @@ class Config
     }
     public const APP_JSON = 'Content-Type: application/json';
 
+    public const SUPPORTED_LANGUAGES = [
+        'Python',
+        'PHP',
+        'Rust',
+        'C++',
+        'C#',
+        'Dart',
+        'Java',
+        'Go',
+        'TypeScript',
+        'JavaScript'
+    ];
+
     public static function getGeminiBaseUrl(): string
     {
         return $_ENV['GEMINI_BASE_URL'] ?? $_ENV['GEMINI_FALLBACK_URL'];
@@ -57,5 +70,20 @@ class Config
     public static function getGithubUserAgent(): string
     {
         return "User-Agent: " . $_ENV['GITHUB_USERAGENT'];
+    }
+
+    public static function getMaxTitleLength(): int
+    {
+        return (int) ($_ENV['MAX_TITLE_LENGTH'] ?? 42);
+    }
+
+    public static function getMaxDescriptionLength(): int
+    {
+        return (int) ($_ENV['MAX_DESCRIPTION_LENGTH'] ?? 512);
+    }
+
+    public static function getMaxQueryLength(): int
+    {
+        return (int) ($_ENV['MAX_QUERY_LENGTH'] ?? 1320);
     }
 }
