@@ -69,7 +69,10 @@ class GeminiService
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [Config::APP_JSON]);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            Config::APP_JSON,
+            Config::getGeminiApiKeyHeader()
+        ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
         // SSL verification to match production standards
@@ -99,7 +102,8 @@ class GeminiService
     {
         $options = [
             'http' => [
-                'header'  => Config::APP_JSON . "\r\n",
+                'header'  => Config::APP_JSON . "\r\n" .
+                    Config::getGeminiApiKeyHeader() . "\r\n",
                 'method'  => 'POST',
                 'content' => json_encode($data),
                 'timeout' => 60,
@@ -121,8 +125,11 @@ class GeminiService
             $safeErrorMessage = "Network request failed.";
             if (isset($error['message'])) {
                 $msg = $error['message'];
-                // Sanitize key
+                // Sanitize key (both old URL query param style and header presence)
                 $msg = preg_replace('/key=[^&\s]+/', 'key=***', $msg);
+                if (Config::getGeminiApiKey() !== '') {
+                    $msg = str_replace(Config::getGeminiApiKey(), '***', $msg);
+                }
                 $safeErrorMessage .= " Details: " . $msg;
             }
             throw new GeminiApiException($safeErrorMessage);

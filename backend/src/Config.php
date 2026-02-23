@@ -9,6 +9,7 @@ class Config
         return $_ENV['PROJECT_NAME'];
     }
     public const APP_JSON = 'Content-Type: application/json';
+    public const GEMINI_API_KEY_HEADER = 'x-goog-api-key';
 
     public const SUPPORTED_LANGUAGES = [
         'Python',
@@ -38,13 +39,17 @@ class Config
         return $_ENV['GEMINI_API_KEY'] ?? '';
     }
 
+    public static function getGeminiApiKeyHeader(): string
+    {
+        return self::GEMINI_API_KEY_HEADER . ': ' . self::getGeminiApiKey();
+    }
+
     public static function getGeminiFullUrl(): string
     {
         $baseUrl = self::getGeminiBaseUrl();
         $model = self::getGeminiModel();
-        $apiKey = self::getGeminiApiKey();
 
-        return "{$baseUrl}/models/{$model}:generateContent?key={$apiKey}";
+        return "{$baseUrl}/models/{$model}:generateContent";
     }
 
     public static function getGeminiTemperature(): float
