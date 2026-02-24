@@ -37,13 +37,25 @@ class GeminiService
         ];
 
         $response = $this->makeRequest($url, $data);
-        $result = json_decode($response, true);
+        $body = $response['body'];
+        $httpCode = $response['http_code'];
+
+        $result = json_decode($body, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $snippet = trim(substr(strip_tags($body), 0, 100));
+            throw new GeminiApiException("Invalid JSON response. HTTP: {$httpCode}. Context: {$snippet}", $httpCode ?: 500);
+        }
 
         if (isset($result['error'])) {
             $errorMessage = $result['error']['message'] ?? 'Unknown error';
-            // The HTTP code is not directly available here from makeRequest,
-            // but the error message from Gemini API usually indicates the problem.
-            throw new GeminiApiException("API error: " . $errorMessage);
+            $errorCode = $result['error']['code'] ?? $httpCode;
+            $errorStatus = $result['error']['status'] ?? 'UNKNOWN';
+            throw new GeminiApiException("API error [{$errorStatus}]: {$errorMessage}", (int)$errorCode ?: 500);
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            throw new GeminiApiException("API request failed with HTTP Code: {$httpCode}", $httpCode);
         }
 
         if (!isset($result['candidates'][0]['content']['parts'][0]['text'])) {
@@ -54,7 +66,7 @@ class GeminiService
         return $result['candidates'][0]['content']['parts'][0]['text'];
     }
 
-    private function makeRequest(string $url, array $data): string
+    private function makeRequest(string $url, array $data): array
     {
         if (function_exists('curl_init')) {
             return $this->makeCurlRequest($url, $data);
@@ -63,7 +75,7 @@ class GeminiService
         }
     }
 
-    private function makeCurlRequest(string $url, array $data): string
+    private function makeCurlRequest(string $url, array $data): array
     {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -88,17 +100,10 @@ class GeminiService
 
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        if ($httpCode !== 200) {
-            // For non-200, we still return response so calling method can parse error JSON
-            // unless it's a complete failure?
-            // Actually, `askTaipo` expects json, so lets return it.
-            // But if it's 404 or 500 HTML...
-        }
-
-        return $response;
+        return ['body' => $response, 'http_code' => $httpCode];
     }
 
-    private function makeFileGetContentsRequest(string $url, array $data): string
+    private function makeFileGetContentsRequest(string $url, array $data): array
     {
         $options = [
             'http' => [
@@ -135,6 +140,16 @@ class GeminiService
             throw new GeminiApiException($safeErrorMessage);
         }
 
-        return $response;
+        $httpCode = 0;
+        if (isset($http_response_header)) {
+            foreach ($http_response_header as $header) {
+                if (preg_match('#HTTP/[\d\.]+\s+(\d+)#', $header, $matches)) {
+                    $httpCode = intval($matches[1]);
+                    break;
+                }
+            }
+        }
+
+        return ['body' => $response, 'http_code' => $httpCode];
     }
 }
