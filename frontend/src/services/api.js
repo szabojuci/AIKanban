@@ -13,8 +13,8 @@ export const api = {
     async getKanbanTasks(project) {
         const url = project ? `/?project=${encodeURIComponent(project)}` : '/';
         const response = await client.get(url);
-        // Backend returns: { tasks: {...}, existingProjects: [...], ... }
-        return response.data.tasks;
+        // Backend returns: { tasks: {...}, existingProjects: [...], config: {...}, ... }
+        return response.data;
     },
 
     async addTask(project, title, description, priority = 0) {
@@ -60,6 +60,7 @@ export const api = {
 
     async generateTasks(projectName, prompt) {
         const response = await client.post('/', {
+            action: 'generate_project_tasks',
             project_name: projectName,
             ai_prompt: prompt
         });
@@ -75,9 +76,16 @@ export const api = {
         });
     },
 
+    async getProjectDefaults() {
+        const response = await client.post('/', {
+            action: 'get_project_defaults'
+        });
+        return response.data;
+    },
+
     async generateCode(taskId, description) {
         const response = await client.post('/', {
-            action: 'generate_java_code',
+            action: 'generate_code',
             task_id: taskId,
             description: description
         });
@@ -107,6 +115,14 @@ export const api = {
             action: 'create_project',
             name: name
         });
+    },
+
+    async createProjectFromSpec(specContent) {
+        const response = await client.post('/', {
+            action: 'create_project_from_spec',
+            spec: specContent
+        });
+        return response.data;
     },
 
     async renameProject(id, name) {
@@ -143,6 +159,24 @@ export const api = {
             task_id: taskId,
             query: query
         });
+        return response.data;
+    },
+
+    async saveRequirement(projectName, content) {
+        return client.post('/', {
+            action: 'save_requirement',
+            project_name: projectName,
+            content: content
+        });
+    },
+
+    async getRequirements(projectName) {
+        const response = await client.get(`/?action=get_requirements&project_name=${encodeURIComponent(projectName)}`);
+        return response.data;
+    },
+
+    async getApiUsage() {
+        const response = await client.get(`/?action=get_api_usage`);
         return response.data;
     }
 };
