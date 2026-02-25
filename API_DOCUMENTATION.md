@@ -119,3 +119,11 @@ Returns the dashboard data. If `Accept: application/json` is sent or `?api=1` qu
 | `save_requirement` | POST | `project_name`, `content` | Saves a new requirement for a project. |
 
 | `get_requirements` | GET | `project_name` | Retrieves all requirements for a specific project (ordered by newest). |
+
+### 7. API Usage Management
+
+**Action Parameter:** `action` (in GET)
+
+| Action | Method | Required Fields | Description |
+| :--- | :--- | :--- | :--- |
+| `get_api_usage` | GET | None | Retrieves token usage statistics (prompt, candidate, total) and cost configuration for the Gemini API. |

@@ -173,5 +173,10 @@ export const api = {
     async getRequirements(projectName) {
         const response = await client.get(`/?action=get_requirements&project_name=${encodeURIComponent(projectName)}`);
         return response.data;
+    },
+
+    async getApiUsage() {
+        const response = await client.get(`/?action=get_api_usage`);
+        return response.data;
     }
 };
