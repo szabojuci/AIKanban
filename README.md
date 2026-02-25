@@ -43,6 +43,13 @@ You can change your `GEMINI_FALLBACK_MODEL` to another model if you want to use 
 At the moment `GEMINI_BASE_URL` and `GEMINI_FALLBACK_URL` are the same, but they can be different. I just prepared it for future use in case of changes in the API.  
 **TAIPO** settings are optional, but recommended for better performance. In case of missing or incorrect settings, the app will use default values which are built-in (see [Config.php](backend/src/Config.php)).
 
+### 3.1 About the API costs
+
+It is set to the current costs of the models (2026-02-25). I gave you the link also to check the costs of the models (in case of changes in the pricing, or you need another model). Links are in the `.env.example` file (on the top).
+
+`*._MODEL_PROMPT_COST_PER_MILLION` is the cost of the prompt (input) per million tokens.  
+`*._MODEL_CANDIDATE_COST_PER_MILLION` is the cost of the response (output) per million tokens.
+
 ---
 
 ### 4. 🎮 How to Use the App
