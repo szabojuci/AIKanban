@@ -52,6 +52,24 @@ class Config
         return "{$baseUrl}/models/{$model}:generateContent";
     }
 
+    public static function getModelPromptCost(string $modelName): float
+    {
+        // returns a FAKE cost for the model if it is not set in the .env
+        if ($modelName === self::getGeminiModel()) {
+            return (float) ($_ENV['GEMINI_BASE_MODEL_PROMPT_COST_PER_MILLION'] ?? 0.075);
+        }
+        return (float) ($_ENV['GEMINI_FALLBACK_MODEL_PROMPT_COST_PER_MILLION'] ?? 0.075);
+    }
+
+    public static function getModelCandidateCost(string $modelName): float
+    {
+        // returns a FAKE cost for the model if it is not set in the .env
+        if ($modelName === self::getGeminiModel()) {
+            return (float) ($_ENV['GEMINI_BASE_MODEL_CANDIDATE_COST_PER_MILLION'] ?? 0.300);
+        }
+        return (float) ($_ENV['GEMINI_FALLBACK_MODEL_CANDIDATE_COST_PER_MILLION'] ?? 0.300);
+    }
+
     public static function getGeminiTemperature(): float
     {
         return (float) ($_ENV['GEMINI_TEMPERATURE'] ?? 0.7);
