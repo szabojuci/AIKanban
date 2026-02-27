@@ -50,6 +50,14 @@ It is set to the current costs of the models (2026-02-25). I gave you the link a
 `*._MODEL_PROMPT_COST_PER_MILLION` is the cost of the prompt (input) per million tokens.  
 `*._MODEL_CANDIDATE_COST_PER_MILLION` is the cost of the response (output) per million tokens.
 
+### 3.2 MIN_USERNAME_LENGTH and MIN_PASSWORD_LENGTH
+
+These values are set to the current minimum lengths of the username and password.  
+Default values are 6 and 8, but built-in values are 3 and 6.  
+`MIN_USERNAME_LENGTH` is the minimum length of the username.  
+`MIN_PASSWORD_LENGTH` is the minimum length of the password.  
+Maximum lengths of the username and password are built-in, and those are: 16 and 31.
+
 ---
 
 ### 4. 🎮 How to Use the App

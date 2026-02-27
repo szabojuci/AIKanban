@@ -14,7 +14,7 @@
                         <input
                             v-model="username"
                             :minlength="config?.minUsernameLength || 3"
-                            :maxlength="50"
+                            :maxlength="16"
                             type="text"
                             placeholder="username"
                             id="username-input"
@@ -30,6 +30,7 @@
                         <input
                             v-model="password"
                             :minlength="config?.minPasswordLength || 6"
+                            :maxlength="31"
                             type="password"
                             placeholder="••••••••"
                             id="password-input"

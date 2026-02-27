@@ -23,14 +23,14 @@ class AuthController
         if (empty($username) || empty($password)) {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => 'Username and password are required.']);
-        } elseif (strlen($username) < Config::getMinUsernameLength() || strlen($username) > 50 || !preg_match('/^\w+$/', $username)) {
+        } elseif (strlen($username) < Config::getMinUsernameLength() || strlen($username) > 16 || !preg_match('/^\w+$/', $username)) {
             // Validate username length and characters
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Invalid username format (min ' . Config::getMinUsernameLength() . '-50 letters/numbers/underscore).']);
-        } elseif (strlen($password) < Config::getMinPasswordLength()) {
+            echo json_encode(['success' => false, 'error' => 'Invalid username format (' . Config::getMinUsernameLength() . '-16 letters/numbers/underscore).']);
+        } elseif (strlen($password) < Config::getMinPasswordLength() || strlen($password) > 31) {
             // Validate password length
             http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Password must be at least ' . Config::getMinPasswordLength() . ' characters long.']);
+            echo json_encode(['success' => false, 'error' => 'Password must be between ' . Config::getMinPasswordLength() . ' and 31 characters long.']);
         } else {
             try {
                 $this->doRegister($username, $password);
