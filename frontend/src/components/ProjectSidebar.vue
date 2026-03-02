@@ -63,6 +63,13 @@
                                 class="textarea textarea-bordered h-32 leading-relaxed"
                                 placeholder="Describe the project you want to build..."
                             ></textarea>
+                            <div class="pt-1 pb-0">
+                                <span class="label-text-alt text-warning"
+                                    >Note: Prompts are sent to Google Gemini
+                                    API.<br />Do not include Personally
+                                    Identifiable Information (PII).</span
+                                >
+                            </div>
                         </div>
 
                         <div class="divider text-xs">OR UPLOAD SPEC</div>
@@ -382,14 +389,14 @@ const handleCreateEmpty = async () => {
     } finally {
         loading.value = false;
     }
-}
+};
 
 const openRenameModal = () => {
     if (selectedProject.value) {
         renameName.value = selectedProject.value.name;
         isRenameModalOpen.value = true;
     }
-}
+};
 
 const handleRename = async () => {
     if (!selectedProject.value || !renameName.value) return;
@@ -397,7 +404,7 @@ const handleRename = async () => {
         await api.renameProject(selectedProject.value.id, renameName.value);
         // Optimization: update local state immediately
         selectedProject.value.name = renameName.value;
-        const p = projects.value.find(p => p.id === selectedProject.value.id);
+        const p = projects.value.find((p) => p.id === selectedProject.value.id);
         if (p) p.name = renameName.value;
 
         isRenameModalOpen.value = false;
@@ -409,7 +416,7 @@ const handleRename = async () => {
     } catch (e) {
         alert("Error renaming project: " + (e.response?.data?.error || e.message));
     }
-}
+};
 
 const isDeleteConfirmOpen = ref(false);
 const deleteConfirmationText = ref("");
@@ -417,7 +424,7 @@ const deleteConfirmationText = ref("");
 const openDeleteConfirm = () => {
     isDeleteConfirmOpen.value = true;
     deleteConfirmationText.value = "";
-}
+};
 
 const handleDelete = async () => {
     if (!selectedProject.value) return;
@@ -438,7 +445,7 @@ const handleDelete = async () => {
     } catch (e) {
         alert("Error deleting project: " + (e.response?.data?.error || e.message));
     }
-}
+};
 
 const loadProject = () => {
     if (selectedProject.value) {
@@ -451,12 +458,12 @@ const loadProject = () => {
 };
 
 const selectProjectByName = (name) => {
-    const proj = projects.value.find(p => p.name === name);
+    const proj = projects.value.find((p) => p.name === name);
     if (proj) {
         selectedProject.value = proj;
         loadProject();
     }
-}
+};
 
 const parseProjectsResponse = (res) => {
     let rawList = [];
@@ -468,7 +475,7 @@ const parseProjectsResponse = (res) => {
         rawList = res.existingProjects;
     }
 
-    return rawList.map(p => {
+    return rawList.map((p) => {
         if (typeof p === 'string') return { name: p, id: null };
         return p;
     });
@@ -479,7 +486,7 @@ const tryRestoreSavedProject = async () => {
         const settingRes = await api.getSetting('last_active_project');
         if (settingRes.success && settingRes.value) {
             const savedId = Number.parseInt(settingRes.value, 10);
-            const savedProj = projects.value.find(p => p.id === savedId);
+            const savedProj = projects.value.find((p) => p.id === savedId);
             if (savedProj) {
                 selectedProject.value = savedProj;
                 loadProject();
@@ -500,8 +507,8 @@ const fetchProjects = async () => {
         // Auto-select logic
         if (projects.value.length > 0) {
             if (selectedProject.value) {
-                 // Re-link selected object reference if needed
-                const found = projects.value.find(p => p.name === selectedProject.value.name);
+                // Re-link selected object reference if needed
+                const found = projects.value.find((p) => p.name === selectedProject.value.name);
                 if (found) selectedProject.value = found;
             } else {
                 await tryRestoreSavedProject();

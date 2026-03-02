@@ -54,6 +54,16 @@
                         By registering, you agree to local storage of your tasks and projects.
                     </p>
 
+                    <div class="text-center mb-4">
+                        <button
+                            @click="$emit('open-privacy-modal')"
+                            type="button"
+                            class="link link-hover text-xs text-primary"
+                        >
+                            Read our Privacy Policy & Terms
+                        </button>
+                    </div>
+
                     <div class="form-control mt-2">
                         <button
                             :disabled="loading"
@@ -96,7 +106,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['auth-success']);
+const emit = defineEmits(['auth-success', 'open-privacy-modal']);
 
 const isLogin = ref(true);
 const username = ref('');

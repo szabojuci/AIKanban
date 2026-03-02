@@ -26,7 +26,7 @@
                 <!-- Brand -->
                 <div class="flex-none">
                     <a class="btn btn-ghost text-xl">
-                        <img src="./images/robot_head.svg" alt="App Logo" class="w-8 h-8 mr-2" />
+                        <img src="./images/robot_head.svg" alt="App Logo" class="w-8 h-8 mr-2">
                         {{ appConfig.projectName }}
                     </a>
                 </div>
@@ -63,10 +63,10 @@
 
                 <!-- Requirements Button -->
                 <div class="flex-none mr-2">
-                    <button 
-                        v-if="currentProject" 
-                        @click="isRequirementModalOpen = true" 
-                        class="btn btn-ghost btn-circle" 
+                    <button
+                        v-if="currentProject"
+                        @click="isRequirementModalOpen = true"
+                        class="btn btn-ghost btn-circle"
                         title="Project Requirements"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -77,9 +77,9 @@
 
                 <!-- Logout Button -->
                 <div class="flex-none mr-2">
-                    <button 
-                        @click="handleLogout" 
-                        class="btn btn-ghost text-error" 
+                    <button
+                        @click="handleLogout"
+                        class="btn btn-ghost text-error"
                         title="Logout"
                     >
                         Logout
@@ -122,7 +122,8 @@
                     <span>Error: {{ error }}</span>
                 </div>
 
-                <KanbanBoard v-else-if="currentProject"
+                <KanbanBoard
+                    v-else-if="currentProject"
                     :columns="columns"
                     :tasks="tasks"
                     :current-project="currentProject"
@@ -192,8 +193,18 @@
             v-if="!isAuthenticated"
             :config="appConfig"
             @auth-success="handleAuthSuccess"
+            @open-privacy-modal="isPrivacyModalOpen = true"
         />
 
+        <CookieBanner
+            v-if="!isPrivacyModalOpen"
+            @open-privacy-modal="isPrivacyModalOpen = true"
+        />
+
+        <PrivacyModal
+            :is-open="isPrivacyModalOpen"
+            @close="isPrivacyModalOpen = false"
+        />
     </div>
 </template>
 
@@ -205,7 +216,9 @@ import CodeGenerationModal from './components/modals/CodeGenerationModal.vue';
 import TaskQueryModal from './components/modals/TaskQueryModal.vue';
 import ApiCostModal from './components/modals/ApiCostModal.vue';
 import RequirementModal from './components/RequirementModal.vue';
+import PrivacyModal from './components/modals/PrivacyModal.vue';
 import LoginView from './components/LoginView.vue';
+import CookieBanner from './components/CookieBanner.vue';
 import { api } from './services/api';
 
 const isAuthenticated = ref(false);
@@ -223,6 +236,8 @@ const currentProject = ref(null);
 const showGithubModal = ref(false);
 const drawerOpen = ref(false);
 const theme = ref('cupcake');
+
+const isPrivacyModalOpen = ref(false);
 
 const toggleTheme = () => {
     theme.value = theme.value === 'cupcake' ? 'light' : 'cupcake';

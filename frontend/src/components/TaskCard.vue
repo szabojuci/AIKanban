@@ -109,10 +109,17 @@
                             <button
                                 @click.prevent="requestDelete"
                                 type="button"
-                                class="text-error"
+                                class="text-error border-b border-base-content/10 mb-1 pb-2"
                             >
                                 🗑️ Delete
                             </button>
+                        </li>
+                        <li class="px-2 pt-1 pb-0 line-clamp-2 leading-tight">
+                            <span
+                                class="text-[10px] text-warning px-0 cursor-default opacity-90 pointer-events-none hover:bg-transparent lowercase text-center"
+                            >
+                                *AI features send data to Gemini API. Avoid PII.
+                            </span>
                         </li>
                     </ul>
                 </div>
@@ -138,7 +145,7 @@
                 v-if="task.po_comments"
                 class="mt-2 flex justify-end"
             >
-                <div 
+                <div
                     @click.stop="enableView"
                     class="badge badge-accent badge-sm animate-pulse-subtle cursor-pointer hover:scale-110 transition-transform"
                     title="TAIPO Feedback available"
