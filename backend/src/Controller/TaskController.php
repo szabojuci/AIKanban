@@ -134,6 +134,7 @@ class TaskController
         $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
         $newTitle = strip_tags(trim($_POST['title'] ?? ''));
         $newDescription = trim($_POST['description'] ?? '');
+        $lastUpdatedAt = $_POST['last_updated_at'] ?? null;
 
         if (is_numeric($taskId) && !empty($newTitle)) {
             if (strlen($newTitle) > Config::getMaxTitleLength() || strlen($newDescription) > Config::getMaxDescriptionLength()) {
@@ -142,10 +143,17 @@ class TaskController
                 return;
             }
             try {
-                $affected = $this->taskService->updateTask((int)$taskId, $newTitle, $newDescription);
+                $affected = $this->taskService->updateTask((int)$taskId, $newTitle, $newDescription, $lastUpdatedAt);
                 if ($affected === 0) {
-                    http_response_code(404);
-                    echo json_encode(['success' => false, 'error' => "Task not found."]);
+                    // Could be not found OR concurrency conflict if last_updated_at was provided
+                    $taskExists = $this->taskService->getTaskById((int)$taskId);
+                    if (!$taskExists) {
+                        http_response_code(404);
+                        echo json_encode(['success' => false, 'error' => "Task not found."]);
+                    } else {
+                        http_response_code(409); // Conflict
+                        echo json_encode(['success' => false, 'error' => "CONFLICT: This task was modified by someone else. Please refresh and try again."]);
+                    }
                     return;
                 }
                 header(Config::APP_JSON);

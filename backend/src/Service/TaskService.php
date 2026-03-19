@@ -31,7 +31,7 @@ class TaskService
 
     public function getTaskById(int $taskId): ?array
     {
-        $stmt = $this->pdo->prepare("SELECT * FROM tasks WHERE id = :id");
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id, project_name, updated_at FROM tasks WHERE id = :id");
         $stmt->execute([':id' => $taskId]);
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
         return $task ?: null;
@@ -39,7 +39,7 @@ class TaskService
 
     public function getTasksByProject(string $projectName): array
     {
-        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id, updated_at FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
         $stmt->execute([':projectName' => $projectName]);
         $tasks = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -114,14 +114,22 @@ class TaskService
         return $stmt->rowCount();
     }
 
-    public function updateTask(int $taskId, string $title, string $description): int
+    public function updateTask(int $taskId, string $title, string $description, ?string $lastUpdatedAt = null): int
     {
-        $stmt = $this->pdo->prepare("UPDATE tasks SET title = :title, description = :description WHERE id = :id");
-        $stmt->execute([
+        $query = "UPDATE tasks SET title = :title, description = :description, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $params = [
             ':title' => $title,
             ':description' => $description,
             ':id' => $taskId
-        ]);
+        ];
+
+        if ($lastUpdatedAt !== null) {
+            $query .= " AND updated_at = :last_updated_at";
+            $params[':last_updated_at'] = $lastUpdatedAt;
+        }
+
+        $stmt = $this->pdo->prepare($query);
+        $stmt->execute($params);
         return $stmt->rowCount();
     }
 
