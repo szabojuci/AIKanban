@@ -521,6 +521,13 @@ class TaskService
         Please generate a **complete, but very concise** solution (code). The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
 
         $rawText = $this->geminiService->askTaipo($prompt);
+
+        // Persist code if taskId provided
+        if ($taskId !== null) {
+            $stmt = $this->pdo->prepare("UPDATE tasks SET generated_code = :code WHERE id = :id");
+            $stmt->execute([':code' => $rawText, ':id' => $taskId]);
+        }
+
         return Utils::formatCodeBlocks($rawText, $taskId, $finalDescription, $isUserLoggedIn);
     }
 }
