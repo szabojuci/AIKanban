@@ -229,7 +229,7 @@ const handleSaveTask = async (payload) => {
     if (!title) return;
     try {
         if (taskToEdit.value) {
-            await api.editTask(taskToEdit.value.id, title, description);
+            await api.editTask(taskToEdit.value.id, title, description, taskToEdit.value.updated_at);
             emit("task-updated");
         } else {
             await api.addTask(props.currentProject, title, description, priority);

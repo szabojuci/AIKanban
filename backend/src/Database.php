@@ -48,7 +48,7 @@ class Database
         }
 
         // 2. Run Migrations (Safe column additions)
-        $this->ensureColumnsExist('tasks', ['is_subtask', 'po_comments', 'generated_code', 'position', 'title']);
+        $this->ensureColumnsExist('tasks', ['is_subtask', 'po_comments', 'generated_code', 'position', 'title', 'updated_at']);
 
         // 3. Data Migration: Split Description into Title/Description if Title is NULL
         $this->migrateTaskTitles();
@@ -117,6 +117,7 @@ class Database
             'position' => ['type' => 'INTEGER', 'default' => '0'],
             'user_id' => ['type' => 'INTEGER', 'default' => 'NULL'],
             'parent_id' => ['type' => 'INTEGER', 'default' => 'NULL'],
+            'updated_at' => ['type' => 'DATETIME', 'default' => "'2026-03-16 13:20:00'"],
         ];
 
         return $definitions[$col] ?? ['type' => 'TEXT', 'default' => 'NULL'];

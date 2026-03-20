@@ -74,7 +74,13 @@ class TaskController
 
         if (is_numeric($taskId)) {
             try {
-                $this->taskService->toggleImportance((int)$taskId, (int)$isImportant);
+                $affected = $this->taskService->toggleImportance((int)$taskId, (int)$isImportant);
+                if ($affected === 0) {
+                    http_response_code(404);
+                    header(Config::APP_JSON);
+                    echo json_encode(['success' => false, 'error' => "Task not found."]);
+                    return;
+                }
                 header(Config::APP_JSON);
                 echo "Success: Importance toggled for task ID {$taskId}";
             } catch (Exception $e) {
@@ -128,6 +134,7 @@ class TaskController
         $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
         $newTitle = strip_tags(trim($_POST['title'] ?? ''));
         $newDescription = trim($_POST['description'] ?? '');
+        $lastUpdatedAt = $_POST['last_updated_at'] ?? null;
 
         if (is_numeric($taskId) && !empty($newTitle)) {
             if (strlen($newTitle) > Config::getMaxTitleLength() || strlen($newDescription) > Config::getMaxDescriptionLength()) {
@@ -136,7 +143,19 @@ class TaskController
                 return;
             }
             try {
-                $this->taskService->updateTask((int)$taskId, $newTitle, $newDescription);
+                $affected = $this->taskService->updateTask((int)$taskId, $newTitle, $newDescription, $lastUpdatedAt);
+                if ($affected === 0) {
+                    // Could be not found OR concurrency conflict if last_updated_at was provided
+                    $taskExists = $this->taskService->getTaskById((int)$taskId);
+                    if (!$taskExists) {
+                        http_response_code(404);
+                        echo json_encode(['success' => false, 'error' => "Task not found."]);
+                    } else {
+                        http_response_code(409); // Conflict
+                        echo json_encode(['success' => false, 'error' => "CONFLICT: This task was modified by someone else. Please refresh and try again."]);
+                    }
+                    return;
+                }
                 header(Config::APP_JSON);
                 echo json_encode(['success' => true]);
             } catch (Exception $e) {
@@ -153,6 +172,8 @@ class TaskController
     public function handleGenerateCode()
     {
         $description = trim($_POST['description'] ?? '');
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        $isLoggedIn = isset($_SESSION['user_id']);
 
         if (empty($description) || strlen($description) > Config::getMaxDescriptionLength() * 2) {
             http_response_code(400);
@@ -161,7 +182,7 @@ class TaskController
         }
 
         try {
-            $formattedCode = $this->taskService->generateCode($description);
+            $formattedCode = $this->taskService->generateCode($description, $taskId ?: null, $isLoggedIn);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'code' => $formattedCode]);
         } catch (GeminiApiException $e) {
@@ -251,6 +272,57 @@ class TaskController
         } else {
             http_response_code(400);
             echo json_encode(['success' => false, 'error' => "Invalid parameters for reorder."]);
+        }
+    }
+    public function handleCommitToGitHub()
+    {
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        $description = $_POST['description'] ?? '';
+        $code = $_POST['code'] ?? '';
+
+        $userToken = $_POST['user_token'] ?? null;
+        $userUsername = $_POST['user_username'] ?? null;
+
+        // Create a temporary GitHub service with user provided credentials if available
+        $token = $userToken ?: ($_ENV['GITHUB_TOKEN'] ?? getenv('GITHUB_TOKEN'));
+        $username = $userUsername ?: ($_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'));
+        $repo = $_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO');
+
+        $ghService = new \App\Service\GitHubService($token, $username, $repo);
+
+        if (empty($taskId) || empty($code)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => "Error: Task ID or code is missing for the commit."]);
+            return;
+        }
+
+        try {
+            // Resilience: Fetch latest description from DB
+            $dbTask = $this->taskService->getTaskById($taskId);
+            if ($dbTask) {
+                $description = $dbTask['description'];
+            }
+
+            $safeDescription = preg_replace('/[^a-zA-Z0-9\s]/', '', $description);
+            $safeDescription = trim(substr($safeDescription, 0, 50));
+            $fileName = 'Task_' . $taskId . '_' . str_replace(' ', '_', $safeDescription) . '.java';
+            $filePath = 'src/main/java/' . $fileName;
+
+            $commitMessage = "feat: Adds task implementation for: " . substr($description, 0, 70) . '...';
+
+            $result = $ghService->commitFile($filePath, $code, $commitMessage);
+
+            // Mark task as done if commit successful
+            $this->taskService->updateStatus($taskId, 'DONE', $dbTask['project_name']);
+
+            header(Config::APP_JSON);
+            echo json_encode($result);
+        } catch (Exception $e) {
+            $code = $e->getCode() ?: 500;
+            $code = ($code >= 100 && $code <= 599) ? $code : 500;
+            http_response_code($code);
+            error_log("GitHub commit error: HTTP {$code}. " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }
 }

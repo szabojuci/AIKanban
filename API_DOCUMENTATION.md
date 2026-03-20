@@ -39,6 +39,7 @@ Error Mockup:
 
 > [!NOTE]
 > The backend now returns appropriate HTTP status codes (e.g., 400 for bad requests, 403 for WIP limits, 502 for AI failures) instead of a generic 500.
+> Optimistic Concurrency Control (OCC) is implemented for `edit_task`: if the `last_updated_at` parameter does not match the current database value, the API returns a **409 Conflict** status.
 
 ## Endpoints
 
@@ -52,9 +53,9 @@ Error Mockup:
 | `delete_task` | `task_id` | `status` | Deletes a task by ID. |
 | `toggle_importance` | `task_id`, `is_important` (0/1) | Message string | Toggles the importance flag (star) of a task. |
 | `update_status` | `task_id`, `new_status`, `current_project` | Message string | Moves a task to a new Kanban column. |
-| `edit_task` | `task_id`, `title`, `description` | `success: true` | Updates the title and description of a task. |
-| `generate_code` | `description` | `code` (string) | Uses Gemini AI to generate source code for the task in the requested language. |
-| `decompose_task` | `task_id`, `description`, `current_project` | `count` (int) | Uses Gemini AI to break down a parent story into subtasks linked to that parent (`parent_id`). |
+| `edit_task` | `task_id`, `title`, `description`, `last_updated_at` (opt) | `success: true` | Updates the title and description of a task. Uses `last_updated_at` for optimistic locking to prevent overwriting concurrent edits. |
+| `generate_code` | `description`, `task_id` (opt) | `code` (string) | Uses Gemini AI to generate source code. If `task_id` is provided, the backend uses the latest description from the database to ensure resilience against manual modifications. |
+| `decompose_task` | `task_id`, `description`, `current_project` | `count` (int) | Uses Gemini AI to break down a parent story. Prioritizes the database description for the parent `task_id`. |
 | `commit_to_github` | `task_id`, `code`, `description`, `user_token` (opt), `user_username` (opt) | `filePath` (string) | Commits the generated code to the configured GitHub repository. |
 | `reorder_tasks` | `project_name`, `status`, `task_ids` (array) | `success: true` | Reorders tasks within a specific column/status. |
 | `query_task` | `task_id`, `query` | `answer` (string) | Uses Gemini AI to answer a question about a specific task. |
@@ -113,6 +114,7 @@ Returns the dashboard data. If `Accept: application/json` is sent or `?api=1` qu
   - `po_comments`: String or `null` (traceability and TAIPO notes)
   - `generated_code`: String or `null`
   - `position`: Integer
+  - `updated_at`: String (DATETIME format) - Used for concurrency control.
 - `config`: Object - System configuration:
   - `projectName`: String - The globally configured name of the application.
   - `maxTitleLength`: Integer - Maximum characters allowed for task titles.

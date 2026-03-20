@@ -29,9 +29,17 @@ class TaskService
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    public function getTaskById(int $taskId): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id, project_name, updated_at FROM tasks WHERE id = :id");
+        $stmt->execute([':id' => $taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $task ?: null;
+    }
+
     public function getTasksByProject(string $projectName): array
     {
-        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status, is_important, generated_code, is_subtask, po_comments, position, parent_id, updated_at FROM tasks WHERE project_name = :projectName ORDER BY position ASC, id ASC");
         $stmt->execute([':projectName' => $projectName]);
         $tasks = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -96,23 +104,33 @@ class TaskService
         return $status;
     }
 
-    public function toggleImportance(int $taskId, int $isImportant): void
+    public function toggleImportance(int $taskId, int $isImportant): int
     {
         $stmt = $this->pdo->prepare("UPDATE tasks SET is_important = :is_important WHERE id = :id");
         $stmt->execute([
             ':is_important' => $isImportant,
             ':id' => $taskId
         ]);
+        return $stmt->rowCount();
     }
 
-    public function updateTask(int $taskId, string $title, string $description): void
+    public function updateTask(int $taskId, string $title, string $description, ?string $lastUpdatedAt = null): int
     {
-        $stmt = $this->pdo->prepare("UPDATE tasks SET title = :title, description = :description WHERE id = :id");
-        $stmt->execute([
+        $query = "UPDATE tasks SET title = :title, description = :description, updated_at = CURRENT_TIMESTAMP WHERE id = :id";
+        $params = [
             ':title' => $title,
             ':description' => $description,
             ':id' => $taskId
-        ]);
+        ];
+
+        if ($lastUpdatedAt !== null) {
+            $query .= " AND updated_at = :last_updated_at";
+            $params[':last_updated_at'] = $lastUpdatedAt;
+        }
+
+        $stmt = $this->pdo->prepare($query);
+        $stmt->execute($params);
+        return $stmt->rowCount();
     }
 
     public function updateStatus(int $taskId, string $newStatus, string $projectName): void
@@ -132,10 +150,11 @@ class TaskService
             }
         }
 
-        $stmt = $this->pdo->prepare("UPDATE tasks SET status = :status WHERE id = :id");
+        $stmt = $this->pdo->prepare("UPDATE tasks SET status = :status WHERE id = :id AND project_name = :project_name");
         $stmt->execute([
             ':status' => $newStatus,
-            ':id' => $taskId
+            ':id' => $taskId,
+            ':project_name' => $projectName
         ]);
     }
 
@@ -320,6 +339,7 @@ class TaskService
             }
         }
 
+
         return [
             'name' => $projectName,
             'tasks' => $newTasks
@@ -328,10 +348,26 @@ class TaskService
 
     public function decomposeTask(string $description, string $projectName, ?int $parentId = null): int
     {
-        $prompt = "Decompose this parent user story into 3-5 concrete, high-quality technical subtasks: '{$description}'.
+        $finalDescription = $description;
+        if ($parentId !== null) {
+            $stmt = $this->pdo->prepare("SELECT description FROM tasks WHERE id = :id");
+            $stmt->execute([':id' => $parentId]);
+            $dbDesc = $stmt->fetchColumn();
+            if ($dbDesc !== false) {
+                $finalDescription = $dbDesc;
+            }
+        }
+
+        $contextSummary = $this->getProjectContextSummary($projectName, $parentId);
+
+        $prompt = "You are TAIPO. You are working on the project described below.
+
+                    {$contextSummary}
+
+                    Decompose this parent user story (which is NOT yet implementation stage) into 3-5 concrete, high-quality technical subtasks: '{$finalDescription}'.
 
                     Quality Guidelines:
-                    - Ensure subtasks are highly relevant to the parent story and represent actual actionable steps for implementation.
+                    - Ensure subtasks are highly relevant to the parent story AND consistent with overall project requirements/context.
                     - Make each subtask atomic, tightly scoped, and directly contributing to the parent story's goal.
                     - Use clear, professional, component-level language where appropriate.
 
@@ -346,7 +382,7 @@ class TaskService
 
         $stmt = $this->pdo->prepare("INSERT INTO tasks (project_name, title, description, status, is_subtask, po_comments, parent_id) VALUES (?, ?, ?, '" . self::STATUS_SPRINT_BACKLOG . "', 1, ?, ?)");
 
-        $poFeedback = "TAIPO: Based on original story: \"{$description}\"";
+        $poFeedback = "TAIPO: Based on original story: \"{$finalDescription}\"";
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -383,34 +419,24 @@ class TaskService
 
         $projectName = $task['project_name'];
 
-        // 2. Fetch all OTHER tasks in the same project to provide context
-        $stmtAll = $this->pdo->prepare("SELECT id, description, status FROM tasks WHERE project_name = :project_name ORDER BY status, id");
-        $stmtAll->execute([':project_name' => $projectName]);
-        $allTasks = $stmtAll->fetchAll(PDO::FETCH_ASSOC);
+        // 2. Construct Project Context String (Context summary handles task fetching)
+        $projectContext = $this->getProjectContextSummary($projectName, $taskId);
 
-        // 3. Construct Project Context String
-        $projectContext = "Project Name: " . $projectName . "\n";
-        $projectContext .= "Other Tasks in Project:\n";
-        foreach ($allTasks as $t) {
-            // Mark the current task distinctly
-            $marker = ($t['id'] == $taskId) ? " (CURRENT TASK)" : "";
-            $projectContext .= "- [{$t['status']}] {$t['description']}{$marker}\n";
-        }
-
-        // 4. Construct Task Specific Context
-        $taskContext = "Current Task Description: " . $task['description'];
-        $taskContext .= "\nCurrent Task Status: " . $task['status'];
+        // 3. Construct Task Specific Context
+        $taskContext = "Focus on this Specific Task:";
+        $taskContext .= "\nTitle: " . ($task['title'] ?? '');
+        $taskContext .= "\nDescription: " . $task['description'];
+        $taskContext .= "\nStatus: " . $task['status'];
         if (!empty($task['po_comments'])) {
             $taskContext .= "\nProduct Owner Comments: " . $task['po_comments'];
         }
 
-        // 5. Build Final Prompt
+        // 4. Build Final Prompt
         $prompt = "You are TAIPO, an intelligent coding assistant for the project '{$projectName}'.
 
-        Global Project Context:
+        Project Context (includes requirements and other tasks):
         {$projectContext}
 
-        Focus on this Specific Task:
         {$taskContext}
 
         User Question:
@@ -418,7 +444,7 @@ class TaskService
 
         Instructions:
         - Answer the user's question specifically related to the current task.
-        - Use the global project context to understand dependencies or overall goals, but focus on the specific task.
+        - Use the project context to understand dependencies, shared requirements, or overall goals, but focus on the specific task.
         - Refrain from lengthy intros.
         - Provide code snippets if asked.";
 
@@ -436,11 +462,72 @@ class TaskService
         return $answer;
     }
 
-    public function generateCode(string $description): string
+    private function getProjectContextSummary(string $projectName, ?int $excludeTaskId = null): string
     {
-        $prompt = "Generate a **complete, but very concise** solution (code) to the task: '{$description}'. The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
+        $summary = "Project: {$projectName}\n\n";
+
+        // Current Requirements
+        $reqStmt = $this->pdo->prepare("SELECT content FROM requirements WHERE project_name = :project_name ORDER BY created_at ASC");
+        $reqStmt->execute([':project_name' => $projectName]);
+        $requirements = $reqStmt->fetchAll(PDO::FETCH_COLUMN);
+
+        if ($requirements) {
+            $summary .= "Project Requirements:\n";
+            foreach ($requirements as $req) {
+                $summary .= "- {$req}\n";
+            }
+            $summary .= "\n";
+        }
+
+        // Current Board State
+        $summary .= "Current Board Status:\n";
+        $stmt = $this->pdo->prepare("SELECT id, title, description, status FROM tasks WHERE project_name = :project_name ORDER BY status, id");
+        $stmt->execute([':project_name' => $projectName]);
+        $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($tasks as $task) {
+            if ($task['id'] == $excludeTaskId) {
+                continue;
+            }
+            $summary .= "- [{$task['status']}] {$task['title']} | {$task['description']}\n";
+        }
+
+        return $summary;
+    }
+
+    public function generateCode(string $description, ?int $taskId = null, bool $isUserLoggedIn = false): string
+    {
+        $finalDescription = $description;
+        $projectName = '';
+
+        if ($taskId !== null) {
+            $stmt = $this->pdo->prepare("SELECT description, project_name FROM tasks WHERE id = :id");
+            $stmt->execute([':id' => $taskId]);
+            $dbTask = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($dbTask) {
+                $finalDescription = $dbTask['description'];
+                $projectName = $dbTask['project_name'];
+            }
+        }
+
+        $contextSummary = $projectName ? $this->getProjectContextSummary($projectName, $taskId) : "";
+
+        $prompt = "You are TAIPO, an intelligent coding assistant. You are working on the project described below.
+
+        {$contextSummary}
+
+        TASK TO IMPLEMENT: '{$finalDescription}'
+
+        Please generate a **complete, but very concise** solution (code). The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
 
         $rawText = $this->geminiService->askTaipo($prompt);
-        return Utils::formatCodeBlocks($rawText);
+
+        // Persist code if taskId provided
+        if ($taskId !== null) {
+            $stmt = $this->pdo->prepare("UPDATE tasks SET generated_code = :code WHERE id = :id");
+            $stmt->execute([':code' => $rawText, ':id' => $taskId]);
+        }
+
+        return Utils::formatCodeBlocks($rawText, $taskId, $finalDescription, $isUserLoggedIn);
     }
 }

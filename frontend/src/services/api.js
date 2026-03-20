@@ -86,12 +86,13 @@ export const api = {
         return response.data;
     },
 
-    async editTask(taskId, title, description) {
+    async editTask(taskId, title, description, lastUpdatedAt = null) {
         return client.post('/', {
             action: 'edit_task',
             task_id: taskId,
             title: title,
-            description: description
+            description: description,
+            last_updated_at: lastUpdatedAt
         });
     },
 
