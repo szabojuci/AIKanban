@@ -5,7 +5,7 @@ namespace App;
 use PDO;
 use Exception;
 use App\Exception\DatabaseConnectionException;
-use App\Config\DatabaseConfig;
+use App\Configuration\DatabaseConfig;
 
 class Database
 {

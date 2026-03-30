@@ -7,7 +7,7 @@ use App\Service\ProjectService;
 use App\Service\GitHubService;
 use App\Service\ApplicationService;
 use App\Service\GeminiService;
-use App\Config\GeminiConfig;
+use App\Configuration\GeminiConfig;
 use App\Controller\TaskController;
 use App\Controller\ProjectController;
 use App\Controller\SettingsController;

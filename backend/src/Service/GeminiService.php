@@ -3,7 +3,7 @@
 namespace App\Service;
 
 use App\Config;
-use App\Config\GeminiConfig;
+use App\Configuration\GeminiConfig;
 use App\Exception\GeminiApiException;
 use PDO;
 
