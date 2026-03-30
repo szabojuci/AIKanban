@@ -1,8 +1,10 @@
 import axios from 'axios';
 
+const API_BASE = '/TAIPO/api';
+
 // Create axios instance with base URL pointing to the proxy or direct backend
 const client = axios.create({
-    baseURL: '/api', // Uses Vite proxy
+    baseURL: API_BASE, // Uses Vite proxy or direct backend in production
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
