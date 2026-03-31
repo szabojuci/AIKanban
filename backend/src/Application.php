@@ -13,8 +13,10 @@ use App\Controller\ProjectController;
 use App\Controller\SettingsController;
 use App\Controller\RequirementController;
 use App\Controller\AuthController;
+use App\Controller\TeamController;
 use App\Service\SettingsService;
 use App\Service\RequirementService;
+use App\Service\TeamService;
 use App\Exception\GeminiApiException;
 use App\Exception\ProjectAlreadyExistsException;
 use App\Utils;
@@ -35,6 +37,8 @@ class Application
     private RequirementService $requirementService;
     private RequirementController $requirementController;
     private AuthController $authController;
+    private TeamController $teamController;
+    private TeamService $teamService;
 
     public function run()
     {
@@ -97,13 +101,9 @@ class Application
         // Public Actions (No Auth Required)
         switch ($action) {
             case 'login':
-                $this->authController->handleLogin();
-                exit;
             case 'register':
-                $this->authController->handleRegister();
-                exit;
             case 'check_auth':
-                $this->authController->handleCheckAuth();
+                $this->handleAuthAction($action);
                 exit;
             default:
                 break;
@@ -117,81 +117,49 @@ class Application
         }
 
         // Protected Actions
+        // Protected Actions - Task Actions
+        if (in_array($action, [
+            'add_task', 'delete_task', 'toggle_importance', 'update_status',
+            'reorder_tasks', 'edit_task', 'generate_code', 'generate_project_tasks',
+            'decompose_task', 'commit_to_github', 'query_task'
+        ])) {
+            $this->handleTaskAction($action);
+            exit;
+        }
+
+        // Protected Actions - Project Actions
+        if (in_array($action, [
+            'create_project', 'list_projects', 'update_project', 'delete_project',
+            'create_project_from_spec', 'get_project_defaults', 'set_project_team',
+            'list_user_teams'
+        ])) {
+            $this->handleProjectAction($action);
+            exit;
+        }
+
+        // Protected Actions - Team Actions
+        if (in_array($action, [
+            'list_team_users', 'remove_team_user', 'update_team_user_role',
+            'list_teams', 'create_team', 'list_roles', 'assign_team_user'
+        ])) {
+            $this->handleTeamAction($action);
+            exit;
+        }
+
+        // Remaining Protected Actions
         switch ($action) {
             case 'logout':
                 $this->authController->handleLogout();
                 exit;
-                // Task Actions
-            case 'add_task':
-                $this->taskController->handleAddTask();
-                exit;
-            case 'delete_task':
-                $this->taskController->handleDeleteTask();
-                exit;
-            case 'toggle_importance':
-                $this->taskController->handleToggleImportance();
-                exit;
-            case 'update_status':
-                $this->taskController->handleUpdateStatus();
-                exit;
-            case 'reorder_tasks':
-                $this->taskController->handleReorderTasks();
-                exit;
-            case 'edit_task':
-                $this->taskController->handleEditTask();
-                exit;
-            case 'generate_code':
-                $this->taskController->handleGenerateCode();
-                exit;
-            case 'generate_project_tasks':
-                $this->handleGenerateProjectTasks();
-                exit;
 
-            case 'decompose_task':
-                $this->taskController->handleDecomposeTask();
-                exit;
-            case 'commit_to_github':
-                $this->taskController->handleCommitToGitHub();
-                exit;
-            case 'query_task':
-                $this->taskController->handleQueryTask();
-                exit;
-
-                // Project Actions
-            case 'create_project':
-                $this->projectController->handleCreate();
-                exit;
-            case 'list_projects':
-                $this->projectController->handleList();
-                exit;
-            case 'update_project':
-                $this->projectController->handleUpdate();
-                exit;
-            case 'delete_project':
-                $this->projectController->handleDelete();
-                exit;
-            case 'create_project_from_spec':
-                $this->projectController->handleCreateFromSpec();
-                exit;
-            case 'get_project_defaults':
-                $this->projectController->handleGetDefaults();
-                exit;
-
-                // Settings Actions
             case 'get_setting':
-                $key = $_GET['key'] ?? '';
-                $this->settingsController->handleGetSetting($key);
-                exit;
             case 'save_setting':
-                $this->settingsController->handleSaveSetting();
+                $this->handleSettingAction($action);
                 exit;
 
-                // Requirement Actions
             case 'save_requirement':
-                $this->requirementController->handleSaveRequirement();
-                exit;
             case 'get_requirements':
-                $this->requirementController->handleGetRequirements();
+                $this->handleRequirementAction($action);
                 exit;
 
                 // API Cost Actions
@@ -248,7 +216,9 @@ class Application
         }
 
         try {
-            $this->projectService->createProject($projectName);
+            $userId = $_SESSION['user_id'] ?? null;
+            $teamId = filter_var($_POST['team_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
+            $this->projectService->createProject($projectName, $userId, $teamId);
         } catch (ProjectAlreadyExistsException $e) {
             // Project exists, we will replace tasks inside it
             error_log("Project already exists: " . $e->getMessage());
@@ -289,7 +259,9 @@ class Application
         $existingProjects = [];
         $projectsData = [];
         try {
-            $projectsData = $this->projectService->getAllProjects();
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $projectsData = $this->projectService->getAllProjects($userId, $isInstructor);
             $existingProjects = array_column($projectsData, 'name');
         } catch (Exception $e) {
             $error = "Error loading projects: " . $e->getMessage();
@@ -367,6 +339,8 @@ class Application
             $this->requirementService = new RequirementService($pdo);
             $this->requirementController = new RequirementController($this->requirementService);
             $this->authController = new AuthController($pdo);
+            $this->teamService = new TeamService($pdo);
+            $this->teamController = new TeamController($this->teamService);
         } catch (Exception $e) {
             $error = $e->getMessage();
         }
@@ -405,5 +379,112 @@ class Application
         }
 
         return $kanbanTasks;
+    }
+
+    private function handleTeamAction(string $action): void
+    {
+        switch ($action) {
+            case 'list_teams':
+                $this->teamController->handleListTeams();
+                break;
+            case 'create_team':
+                $this->teamController->handleCreateTeam();
+                break;
+            case 'list_roles':
+                $this->teamController->handleListRoles();
+                break;
+            case 'assign_team_user':
+                $this->teamController->handleAssignUser();
+                break;
+            case 'list_team_users':
+                $this->teamController->handleListTeamUsers();
+                break;
+            case 'remove_team_user':
+                $this->teamController->handleRemoveUser();
+                break;
+            case 'update_team_user_role':
+                $this->teamController->handleUpdateUserRole();
+                break;
+            default:
+                break;
+        }
+    }
+
+    private function handleTaskAction(string $action): void
+    {
+        switch ($action) {
+            case 'add_task': $this->taskController->handleAddTask(); break;
+            case 'delete_task': $this->taskController->handleDeleteTask(); break;
+            case 'toggle_importance': $this->taskController->handleToggleImportance(); break;
+            case 'update_status': $this->taskController->handleUpdateStatus(); break;
+            case 'reorder_tasks': $this->taskController->handleReorderTasks(); break;
+            case 'edit_task': $this->taskController->handleEditTask(); break;
+            case 'generate_code': $this->taskController->handleGenerateCode(); break;
+            case 'generate_project_tasks': $this->handleGenerateProjectTasks(); break;
+            case 'decompose_task': $this->taskController->handleDecomposeTask(); break;
+            case 'commit_to_github': $this->taskController->handleCommitToGitHub(); break;
+            case 'query_task': $this->taskController->handleQueryTask(); break;
+            default: break;
+        }
+    }
+
+    private function handleProjectAction(string $action): void
+    {
+        switch ($action) {
+            case 'create_project': $this->projectController->handleCreate(); break;
+            case 'list_projects': $this->projectController->handleList(); break;
+            case 'update_project': $this->projectController->handleUpdate(); break;
+            case 'delete_project': $this->projectController->handleDelete(); break;
+            case 'create_project_from_spec': $this->projectController->handleCreateFromSpec(); break;
+            case 'get_project_defaults':
+                $this->projectController->handleGetDefaults();
+                exit;break;
+            case 'set_project_team':
+                $id = (int)($_POST['id'] ?? 0);
+                $teamId = (int)($_POST['team_id'] ?? 0) ?: null;
+                $this->projectService->setProjectTeam($id, $teamId);
+                header(Config::APP_JSON);
+                echo json_encode(['success' => true]);
+                break;
+            case 'list_user_teams':
+                header(Config::APP_JSON);
+                $isInstructor = $_SESSION['is_instructor'] ?? false;
+                if ($isInstructor) {
+                    $teams = $this->teamService->listTeams();
+                } else {
+                    $teams = $this->teamService->listUserTeams($_SESSION['user_id']);
+                }
+                echo json_encode(['success' => true, 'data' => $teams]);
+                break;
+            default: break;
+        }
+    }
+
+    private function handleSettingAction(string $action): void
+    {
+        if ($action === 'get_setting') {
+            $this->settingsController->handleGetSetting($_GET['key'] ?? '');
+        } elseif ($action === 'save_setting') {
+            $this->settingsController->handleSaveSetting();
+        }
+    }
+
+    private function handleRequirementAction(string $action): void
+    {
+        if ($action === 'save_requirement') {
+            $this->requirementController->handleSaveRequirement();
+        } elseif ($action === 'get_requirements') {
+            $this->requirementController->handleGetRequirements();
+        }
+    }
+
+    private function handleAuthAction(string $action): void
+    {
+        switch ($action) {
+            case 'login': $this->authController->handleLogin(); break;
+            case 'register': $this->authController->handleRegister(); break;
+            case 'check_auth': $this->authController->handleCheckAuth(); break;
+            default: break;
+        }
     }
 }

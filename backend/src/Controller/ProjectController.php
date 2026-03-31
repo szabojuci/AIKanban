@@ -25,7 +25,9 @@ class ProjectController
     public function handleList()
     {
         try {
-            $projects = $this->projectService->getAllProjects();
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $projects = $this->projectService->getAllProjects($userId, $isInstructor);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'projects' => $projects]);
         } catch (Exception $e) {
@@ -50,7 +52,9 @@ class ProjectController
         }
 
         try {
-            $id = $this->projectService->createProject($name);
+            $userId = $_SESSION['user_id'] ?? null;
+            $teamId = filter_var($_POST['team_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
+            $id = $this->projectService->createProject($name, $userId, $teamId);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'id' => $id, 'name' => $name]);
         } catch (ProjectAlreadyExistsException $e) {
@@ -144,14 +148,16 @@ class ProjectController
                 $projectName = "Project " . date('Y-m-d H:i:s');
             }
 
+            $userId = $_SESSION['user_id'] ?? null;
+            $teamId = filter_var($_POST['team_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
             // 2. Create Project
             try {
-                $projectId = $this->projectService->createProject($projectName);
+                $projectId = $this->projectService->createProject($projectName, $userId, $teamId);
             } catch (ProjectAlreadyExistsException $e) {
                 // If exists, maybe append timestamp? Or just use existing?
                 // For now, let's append a random suffix
                 $projectName .= " " . substr(md5(uniqid()), 0, 4);
-                $projectId = $this->projectService->createProject($projectName);
+                $projectId = $this->projectService->createProject($projectName, $userId, $teamId);
             }
 
             // 3. Create Tasks

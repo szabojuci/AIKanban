@@ -317,18 +317,6 @@ const showAlert = (title, message, isDanger = false) => {
 const supportedLanguages = ref([]);
 const languagePrompts = ref({});
 
-onMounted(async () => {
-    try {
-        const defaults = await api.getProjectDefaults();
-        if (defaults.success) {
-            supportedLanguages.value = defaults.languages;
-            languagePrompts.value = defaults.prompts;
-        }
-    } catch (e) {
-        console.error("Failed to load project defaults", e);
-    }
-});
-
 const loadDefaultPrompt = (language) => {
     // Auto-fill project name if empty or generic
     if (!projectName.value || /^New .* Project \d{4}-\d{2}-\d{2}/.test(projectName.value) || projectName.value.startsWith("New Project")) {
@@ -360,7 +348,7 @@ const handleFileUpload = async (event) => {
         if (!text.trim()) return;
 
         loading.value = true;
-        const res = await api.createProjectFromSpec(text);
+        const res = await api.createProjectFromSpec(text, null);
         if (res.success) {
             await fetchProjects();
             if (res.projectName) {
@@ -382,7 +370,7 @@ const handleGenerate = async () => {
     if (!projectName.value || !prompt.value) return;
     loading.value = true;
     try {
-        await api.generateTasks(projectName.value, prompt.value);
+        await api.generateTasks(projectName.value, prompt.value, null);
         // Assuming generation automatically sets it as current or we trigger a reload
         // Refetch to get ID
         await fetchProjects();
@@ -403,7 +391,7 @@ const handleCreateEmpty = async () => {
     if (!projectName.value) return;
     loading.value = true;
     try {
-        await api.createProject(projectName.value);
+        await api.createProject(projectName.value, null);
         await fetchProjects();
         selectProjectByName(projectName.value);
         drawerOpen.value = false;
@@ -414,7 +402,7 @@ const handleCreateEmpty = async () => {
     }
 };
 
-const openRenameModal = () => {
+const openRenameModal = async () => {
     if (selectedProject.value) {
         renameName.value = selectedProject.value.name;
         isRenameModalOpen.value = true;
@@ -425,6 +413,7 @@ const handleRename = async () => {
     if (!selectedProject.value || !renameName.value) return;
     try {
         await api.renameProject(selectedProject.value.id, renameName.value);
+        
         // Optimization: update local state immediately
         selectedProject.value.name = renameName.value;
         const p = projects.value.find((p) => p.id === selectedProject.value.id);
@@ -546,7 +535,16 @@ const fetchProjects = async () => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        const defaults = await api.getProjectDefaults();
+        if (defaults.success) {
+            supportedLanguages.value = defaults.languages;
+            languagePrompts.value = defaults.prompts;
+        }
+    } catch (e) {
+        console.error("Failed to load project defaults", e);
+    }
     fetchProjects();
 });
 </script>

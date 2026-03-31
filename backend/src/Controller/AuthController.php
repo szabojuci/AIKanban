@@ -84,11 +84,17 @@ class AuthController
             $this->pdo->commit();
 
             // Auto-login
+            $isInstructor = ($userId === 1); // By default, user id 1 is toggled to instructor
             $_SESSION['user_id'] = $userId;
             $_SESSION['username'] = $username;
+            $_SESSION['is_instructor'] = $isInstructor;
 
             header(Config::APP_JSON);
-            echo json_encode(['success' => true, 'user' => ['id' => $userId, 'username' => $username]]);
+            echo json_encode(['success' => true, 'user' => [
+                'id' => $userId,
+                'username' => $username,
+                'is_instructor' => $isInstructor
+            ]]);
         }
     }
 
@@ -105,7 +111,7 @@ class AuthController
 
         try {
             $prefix = Config::getTablePrefix();
-            $stmt = $this->pdo->prepare("SELECT id, username, password_hash FROM {$prefix}users WHERE username = :username");
+            $stmt = $this->pdo->prepare("SELECT id, username, password_hash, is_instructor FROM {$prefix}users WHERE username = :username");
             $stmt->execute([':username' => $username]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -115,9 +121,14 @@ class AuthController
 
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
+                $_SESSION['is_instructor'] = (bool)$user['is_instructor'];
 
                 header(Config::APP_JSON);
-                echo json_encode(['success' => true, 'user' => ['id' => $user['id'], 'username' => $user['username']]]);
+                echo json_encode(['success' => true, 'user' => [
+                    'id' => $user['id'],
+                    'username' => $user['username'],
+                    'is_instructor' => (bool)$user['is_instructor']
+                ]]);
             } else {
                 http_response_code(401);
                 error_log("Login failed for username: " . $username); // Security info log, wait 2 sec maybe for timing attacks but it's local
@@ -159,7 +170,23 @@ class AuthController
             'minPasswordLength' => Config::getMinPasswordLength()
         ];
         if (isset($_SESSION['user_id'])) {
-            echo json_encode(['success' => true, 'authenticated' => true, 'user' => ['id' => $_SESSION['user_id'], 'username' => $_SESSION['username']], 'config' => $config]);
+            // Also refresh is_instructor from DB just in case it changed
+            $prefix = Config::getTablePrefix();
+            $stmt = $this->pdo->prepare("SELECT is_instructor FROM {$prefix}users WHERE id = :id");
+            $stmt->execute([':id' => $_SESSION['user_id']]);
+            $isInstructor = (bool)$stmt->fetchColumn();
+            $_SESSION['is_instructor'] = $isInstructor;
+
+            echo json_encode([
+                'success' => true,
+                'authenticated' => true,
+                'user' => [
+                    'id' => $_SESSION['user_id'],
+                    'username' => $_SESSION['username'],
+                    'is_instructor' => $isInstructor
+                ],
+                'config' => $config
+            ]);
         } else {
             echo json_encode(['success' => true, 'authenticated' => false, 'config' => $config]);
         }

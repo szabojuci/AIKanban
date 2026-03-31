@@ -17,14 +17,28 @@ class ProjectService
         $this->pdo = $pdo;
     }
 
-    public function getAllProjects(): array
+    public function getAllProjects(int $userId, bool $isInstructor): array
     {
         $prefix = Config::getTablePrefix();
-        $stmt = $this->pdo->query("SELECT id, name, created_at FROM {$prefix}projects ORDER BY name ASC");
+
+        if ($isInstructor) {
+            $stmt = $this->pdo->prepare("SELECT id, name, team_id, created_at FROM {$prefix}projects ORDER BY name ASC");
+            $stmt->execute();
+        } else {
+            $stmt = $this->pdo->prepare("
+                SELECT DISTINCT p.id, p.name, p.team_id, p.created_at
+                FROM {$prefix}projects p
+                LEFT JOIN {$prefix}team_users tu ON p.team_id = tu.team_id
+                WHERE p.user_id = :user_id OR tu.user_id = :user_id
+                ORDER BY p.name ASC
+            ");
+            $stmt->execute([':user_id' => $userId]);
+        }
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function createProject(string $name): int
+    public function createProject(string $name, ?int $userId = null, ?int $teamId = null): int
     {
         $prefix = Config::getTablePrefix();
         // Check if exists
@@ -35,9 +49,16 @@ class ProjectService
         }
 
         $prefix = Config::getTablePrefix();
-        $stmt = $this->pdo->prepare("INSERT INTO {$prefix}projects (name) VALUES (:name)");
-        $stmt->execute([':name' => $name]);
+        $stmt = $this->pdo->prepare("INSERT INTO {$prefix}projects (name, user_id, team_id) VALUES (:name, :user_id, :team_id)");
+        $stmt->execute([':name' => $name, ':user_id' => $userId, ':team_id' => $teamId]);
         return (int) $this->pdo->lastInsertId();
+    }
+
+    public function setProjectTeam(int $projectId, ?int $teamId): void
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->prepare("UPDATE {$prefix}projects SET team_id = :team_id WHERE id = :id");
+        $stmt->execute([':team_id' => $teamId, ':id' => $projectId]);
     }
 
     public function updateProject(int $id, string $newName): void

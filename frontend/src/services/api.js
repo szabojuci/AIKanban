@@ -79,11 +79,12 @@ export const api = {
         return response.data.projects || response.data.existingProjects || [];
     },
 
-    async generateTasks(projectName, prompt) {
+    async generateTasks(projectName, prompt, teamId = null) {
         const response = await client.post('/', {
             action: 'generate_project_tasks',
             project_name: projectName,
-            ai_prompt: prompt
+            ai_prompt: prompt,
+            team_id: teamId
         });
         return response.data;
     },
@@ -133,17 +134,19 @@ export const api = {
         });
     },
 
-    async createProject(name) {
+    async createProject(name, teamId = null) {
         return client.post('/', {
             action: 'create_project',
-            name: name
+            name: name,
+            team_id: teamId
         });
     },
 
-    async createProjectFromSpec(specContent) {
+    async createProjectFromSpec(specContent, teamId = null) {
         const response = await client.post('/', {
             action: 'create_project_from_spec',
-            spec: specContent
+            spec: specContent,
+            team_id: teamId
         });
         return response.data;
     },
@@ -232,6 +235,76 @@ export const api = {
     async checkAuth() {
         const response = await client.post('/', {
             action: 'check_auth'
+        });
+        return response.data;
+    },
+
+    // Team Management
+    async listTeams() {
+        const response = await client.get('/?action=list_teams');
+        return response.data;
+    },
+
+    async createTeam(name) {
+        const response = await client.post('/', {
+            action: 'create_team',
+            name: name
+        });
+        return response.data;
+    },
+
+    async listRoles() {
+        const response = await client.get('/?action=list_roles');
+        return response.data;
+    },
+
+    async assignTeamUser(teamId, userIdentifier, roleId) {
+        // If it's pure digits, send as user_id. If a string, send as username.
+        const isNumericString = /^\d+$/.test(userIdentifier);
+        const response = await client.post('/', {
+            action: 'assign_team_user',
+            team_id: teamId,
+            user_id: isNumericString ? Number.parseInt(userIdentifier, 10) : undefined,
+            username: isNumericString ? undefined : userIdentifier,
+            role_id: roleId
+        });
+        return response.data;
+    },
+
+    async listTeamUsers(teamId) {
+        const response = await client.get(`/?action=list_team_users&team_id=${teamId}`);
+        return response.data;
+    },
+
+    async removeTeamUser(teamId, userId) {
+        const response = await client.post('/', {
+            action: 'remove_team_user',
+            team_id: teamId,
+            user_id: userId
+        });
+        return response.data;
+    },
+
+    async updateTeamUserRole(teamId, userId, roleId) {
+        const response = await client.post('/', {
+            action: 'update_team_user_role',
+            team_id: teamId,
+            user_id: userId,
+            role_id: roleId
+        });
+        return response.data;
+    },
+
+    async listUserTeams() {
+        const response = await client.get('/?action=list_user_teams');
+        return response.data;
+    },
+
+    async setProjectTeam(projectId, teamId) {
+        const response = await client.post('/', {
+            action: 'set_project_team',
+            id: projectId,
+            team_id: teamId
         });
         return response.data;
     }

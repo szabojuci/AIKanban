@@ -73,12 +73,14 @@ Error Mockup:
 
 | Action | Required Fields | Description |
 | :--- | :--- | :--- |
-| `create_project` | `name` | Creates a new empty project. |
+| `create_project` | `name`, `team_id` (opt) | Creates a new empty project. |
 | `list_projects` | None | Returns a list of all available projects. |
 | `update_project` | `id`, `name` | Renames an existing project. |
 | `delete_project` | `id` | Deletes a project and all its tasks. |
-| `create_project_from_spec` | `spec` (string) | Uses Gemini AI to automatically create a project and tasks from a text specification. |
+| `create_project_from_spec` | `spec` (string), `team_id` (opt) | Uses Gemini AI to automatically create a project and tasks from a text specification. |
 | `get_project_defaults` | None | Returns supported programming `languages` and their default `prompts`. |
+| `set_project_team` | `id` (project), `team_id` (null to unassign) | Assigns/Unassigns a project to a specific team. |
+| `list_user_teams` | None | Returns a list of teams associated with the current user. If the user is an **Instructor**, returns **all** teams. |
 
 ### 3. Project Generation
 
@@ -88,6 +90,7 @@ Error Mockup:
 | :--- | :--- |
 | `project_name` | Name of the new project to create. |
 | `ai_prompt` | Prompt instructions for Gemini AI to generate initial tasks. |
+| `team_id` | (Optional) Team to assign the project to upon creation. |
 
 This request triggers the **AI Brainstorming** flow, creating the project and populating the Sprint Backlog with AI-generated tasks.
 
@@ -147,3 +150,17 @@ Returns the dashboard data. If `Accept: application/json` is sent or `?api=1` qu
 | Action | Method | Required Fields | Description |
 | :--- | :--- | :--- | :--- |
 | `get_api_usage` | GET | None | Retrieves token usage statistics (prompt, candidate, total) and cost configuration for the Gemini API. |
+
+### 8. Team Management
+
+**Action Parameter:** `action` (in POST or GET)
+
+| Action | Method | Required Fields | Description |
+| :--- | :--- | :--- | :--- |
+| `list_teams` | GET/POST | None | Retrieve a list of all teams. |
+| `create_team` | POST | `name` | Creates a new group/team of students. |
+| `list_roles` | GET/POST | None | Retrieve available system roles (e.g., Instructor, Student, PO). |
+| `assign_team_user` | POST | `team_id`, `user_id`, `role_id` | Assigns a user (by ID or exact username) to a team mapped to a specific role. |
+| `list_team_users` | GET | `team_id` | Lists all users and their respective roles for a given team. |
+| `remove_team_user` | POST | `team_id`, `user_id` | Removes a user from a specific team. |
+| `update_team_user_role` | POST | `team_id`, `user_id`, `role_id` | Changes the role of a user within a team. |
