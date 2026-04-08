@@ -16,8 +16,9 @@
                             id="file-upload"
                             class="hidden"
                             accept=".txt,.md"
+                            disabled="true"
                         >
-                        <label for="file-upload" class="btn btn-primary btn-outline">
+                        <label for="file-upload" class="btn btn-primary btn-outline" :class="{ 'btn-disabled': true }">
                             Import File
                         </label>
                     </div>
@@ -27,6 +28,7 @@
                     id="requirement-content"
                     rows="10"
                     placeholder="Enter project requirements here or import a file..."
+                    disabled="true"
                 >
                 </textarea>
             </div>
@@ -39,7 +41,7 @@
                 </button>
                 <button
                     @click="save"
-                    :disabled="isSaving"
+                    :disabled="true"
                     class="btn-primary"
                 >
                     {{ isSaving ? 'Saving...' : 'Save Requirements' }}
@@ -176,7 +178,8 @@ const save = async () => {
 }
 
 .modal-content {
-    background-color: #000;
+    background-color: oklch(var(--b1));
+    color: oklch(var(--bc));
     padding: 2rem;
     border-radius: 8px;
     width: 90%;
@@ -210,7 +213,7 @@ textarea {
 }
 
 .message {
-    background-color: #000;
+    background-color: oklch(var(--b2));
     border-radius: 4px;
     font-weight: bold;
     margin-top: 1rem;
