@@ -3,20 +3,20 @@
     <div
         v-if="isOpen"
         @click.self="$emit('close')"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4 transition-all duration-300"
+        class="fixed inset-0 bg-neutral/60 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4 transition-all duration-300"
     >
         <!-- Modal Content Container -->
-        <div class="relative w-full max-w-2xl flex flex-col shadow-2xl rounded-2xl bg-slate-800 border border-slate-700/50 overflow-hidden max-h-[min(90vh,800px)] animate-in fade-in zoom-in duration-200">
+        <div class="relative w-full max-w-2xl flex flex-col shadow-2xl rounded-2xl bg-base-100 border border-base-300 overflow-hidden max-h-[min(90vh,800px)] animate-in fade-in zoom-in duration-200">
 
             <!-- Sticky Header -->
-            <div class="px-6 py-4 border-b border-slate-700/50 flex items-center shrink-0 bg-slate-800/80 backdrop-blur-md z-10">
-                <h3 class="text-xl font-bold text-white mr-auto flex items-center gap-3">
-                    <span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+            <div class="px-6 py-4 border-b border-base-300 flex items-center shrink-0 bg-base-100/80 backdrop-blur-md z-10">
+                <h3 class="text-xl font-bold text-base-content mr-auto flex items-center gap-3">
+                    <span class="w-1.5 h-6 bg-primary rounded-full"></span>
                     {{ isReadOnly ? 'View Task' : (isEditMode ? 'Edit Task' : 'Add New Task') }}
                 </h3>
                 <div
                     @mouseleave="hoverPriority = 0"
-                    class="flex items-center gap-1.5 bg-slate-900/50 p-1.5 rounded-xl border border-slate-700/30 shadow-inner"
+                    class="flex items-center gap-1.5 bg-base-200 p-1.5 rounded-xl border border-base-300 shadow-inner"
                 >
                     <button
                         v-for="i in 3"
@@ -25,7 +25,7 @@
                         :title="`Priority ${i}`"
                         @click="setPriority(i)"
                         @mouseover="hoverPriority = i"
-                        class="focus:outline-none transition-all duration-200 hover:scale-110 disabled:hover:scale-100 disabled:cursor-default disabled:opacity-80"
+                        class="focus:outline-none transition-all duration-200 text-base-content/40 hover:scale-110 disabled:hover:scale-100 disabled:cursor-default disabled:opacity-80"
                     >
                         <svg
                             xmlns="http://www.w3.org/2000/svg"
@@ -41,7 +41,7 @@
                                 hoverPriority >= i ||
                                 (!hoverPriority && priority >= i)
                                     ? getStarColor(i)
-                                    : '#94a3b8'
+                                    : 'currentColor'
                             "
                             stroke-width="1.5"
                         >
@@ -56,10 +56,10 @@
             </div>
 
             <!-- Scrollable Body Content -->
-            <div class="px-7 py-6 overflow-y-auto custom-scrollbar flex-grow bg-slate-800/20">
+            <div class="px-7 py-6 overflow-y-auto custom-scrollbar flex-grow bg-base-200/50">
                 <!-- Task Title Section -->
                 <div class="mb-6 group">
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1 transition-colors group-focus-within:text-indigo-400" for="task-title">
+                    <label class="block text-[11px] font-bold text-base-content/60 uppercase tracking-widest mb-2.5 ml-1 transition-colors group-focus-within:text-primary" for="task-title">
                         Task Heading
                     </label>
                     <div v-if="!isReadOnly" class="relative">
@@ -70,18 +70,18 @@
                             ref="titleInput"
                             type="text"
                             id="task-title"
-                            class="w-full bg-slate-900 border border-slate-700/50 text-white text-lg rounded-xl p-3.5 pr-14 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all duration-300 shadow-sm placeholder:text-slate-600"
+                            class="w-full bg-base-100 border border-base-300 text-base-content text-lg rounded-xl p-3.5 pr-14 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all duration-300 shadow-sm placeholder:text-base-content/40"
                             placeholder="Brief title for your task..."
                         >
                         <div
-                            class="absolute right-3.5 top-1/2 -translate-y-1/2 bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-md border border-slate-700 font-mono"
+                            class="absolute right-3.5 top-1/2 -translate-y-1/2 bg-base-200 text-base-content/60 text-[10px] px-2 py-0.5 rounded-md border border-base-300 font-mono"
                         >
                             {{ maxTitleLength - title.length }}
                         </div>
                     </div>
                     <div
                         v-else
-                        class="w-full p-4 bg-slate-900/40 text-white rounded-xl border border-slate-700/40 font-bold text-xl leading-tight"
+                        class="w-full p-4 bg-base-200/80 text-base-content rounded-xl border border-base-300 font-bold text-xl leading-tight"
                     >
                         {{ title || 'Untitled Task' }}
                     </div>
@@ -89,7 +89,7 @@
 
                 <!-- Task Description Section -->
                 <div class="mb-6 group">
-                    <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5 ml-1 transition-colors group-focus-within:text-indigo-400" for="task-desc">
+                    <label class="block text-[11px] font-bold text-base-content/60 uppercase tracking-widest mb-2.5 ml-1 transition-colors group-focus-within:text-primary" for="task-desc">
                         Context & Details
                     </label>
                     <div
@@ -100,19 +100,19 @@
                             v-model="description"
                             :maxlength="maxDescriptionLength"
                             id="task-desc"
-                            class="w-full bg-slate-900 border border-slate-700/50 text-white rounded-xl p-4 pb-10 h-44 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 outline-none transition-all duration-300 shadow-sm placeholder:text-slate-600 resize-none leading-relaxed"
+                            class="w-full bg-base-100 border border-base-300 text-base-content rounded-xl p-4 pb-10 h-44 focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all duration-300 shadow-sm placeholder:text-base-content/40 resize-none leading-relaxed"
                             placeholder="What exactly needs to be done? Add relevant context..."
                         >
                         </textarea>
                         <div
-                            class="absolute right-4 bottom-4 bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-md border border-slate-700 font-mono shadow-sm"
+                            class="absolute right-4 bottom-4 bg-base-200 text-base-content/60 text-[10px] px-2 py-0.5 rounded-md border border-base-300 font-mono shadow-sm"
                         >
                             {{ maxDescriptionLength - description.length }}
                         </div>
                     </div>
                     <div
                         v-else
-                        class="w-full p-5 bg-slate-900/40 text-slate-300 rounded-xl border border-slate-700/40 whitespace-pre-wrap min-h-[8rem] text-[15px] leading-relaxed"
+                        class="w-full p-5 bg-base-200/80 text-base-content/80 rounded-xl border border-base-300 whitespace-pre-wrap min-h-[8rem] text-[15px] leading-relaxed"
                     >
                         {{ description || 'No detailed description provided.' }}
                     </div>
@@ -123,14 +123,14 @@
                     v-if="isReadOnly && task?.po_comments"
                     class="mt-8 relative"
                 >
-                    <div class="absolute -top-3 left-4 bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 flex items-center gap-1.5">
+                    <div class="absolute -top-3 left-4 bg-primary text-primary-content text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-lg z-20 flex items-center gap-1.5">
                         <span>🤖</span> AI COUNSEL
                     </div>
-                    <div class="bg-indigo-900/10 rounded-2xl border border-indigo-500/20 overflow-hidden shadow-sm">
-                        <div class="p-6 bg-gradient-to-br from-indigo-500/5 to-transparent">
+                    <div class="bg-primary/5 rounded-2xl border border-primary/20 overflow-hidden shadow-sm">
+                        <div class="p-6">
                             <div
                                 v-html="formattedPoComments"
-                                class="prose prose-sm prose-invert max-w-none text-indigo-100/80 leading-relaxed font-normal"
+                                class="prose prose-sm max-w-none text-base-content/90 leading-relaxed font-normal"
                             ></div>
                         </div>
                     </div>
@@ -138,10 +138,10 @@
             </div>
 
             <!-- Sticky Footer Action Bar -->
-            <div class="px-6 py-4 bg-slate-900/40 border-t border-slate-700/50 flex justify-end items-center gap-3 shrink-0 backdrop-blur-md">
+            <div class="px-6 py-4 bg-base-100 border-t border-base-300 flex justify-end items-center gap-3 shrink-0 backdrop-blur-md">
                 <button
                     @click="$emit('close')"
-                    class="px-5 py-2.5 text-sm font-semibold text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-xl transition-all duration-200"
+                    class="px-5 py-2.5 text-sm font-semibold text-base-content/60 hover:text-base-content hover:bg-base-200 rounded-xl transition-all duration-200"
                 >
                     {{ isReadOnly ? 'Close' : 'Dismiss' }}
                 </button>
@@ -149,7 +149,7 @@
                     v-if="!isReadOnly"
                     @click="save"
                     :disabled="!title"
-                    class="px-6 py-2.5 text-sm font-bold bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white rounded-xl shadow-xl shadow-indigo-900/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2"
+                    class="px-6 py-2.5 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-content rounded-xl shadow-xl shadow-primary/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2"
                 >
                     <svg
                         v-if="isEditMode"

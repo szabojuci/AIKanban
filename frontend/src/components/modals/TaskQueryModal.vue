@@ -105,7 +105,7 @@
 
                 <div
                     v-else-if="formattedAnswer"
-                    class="prose prose-sm prose-invert max-w-none bg-base-200/50 p-6 rounded-2xl border border-base-300"
+                    class="prose prose-sm max-w-none bg-base-200/50 p-6 rounded-2xl border border-base-300"
                 >
                     <h4 class="text-xs font-bold uppercase opacity-30 tracking-widest mb-4">TAIPO Answer:</h4>
                     <div

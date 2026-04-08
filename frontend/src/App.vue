@@ -276,10 +276,16 @@ const appConfig = ref({
 const currentProject = ref(null);
 const showGithubModal = ref(false);
 const drawerOpen = ref(false);
-const theme = ref('cupcake');
+const theme = ref(globalThis?.localStorage?.getItem('theme') || 'dark');
 
 const toggleTheme = () => {
-    theme.value = theme.value === 'cupcake' ? 'light' : 'cupcake';
+    theme.value = theme.value === 'dark' ? 'cupcake' : 'dark';
+    if (globalThis?.localStorage) {
+        globalThis.localStorage.setItem('theme', theme.value);
+    }
+    if (globalThis?.document) {
+        globalThis.document.documentElement.setAttribute('data-theme', theme.value);
+    }
 };
 
 // Code Modal State
@@ -316,10 +322,10 @@ const showNotification = (message, type = 'info', details = null) => {
 };
 
 const columns = ref({
-    'SPRINT BACKLOG': 'info',
-    'IMPLEMENTATION WIP:3': 'error',
+    'SPRINT BACKLOG': 'neutral',
+    'IMPLEMENTATION WIP:3': 'primary',
     'TESTING WIP:2': 'warning',
-    'REVIEW WIP:2': 'primary',
+    'REVIEW WIP:2': 'info',
     'DONE': 'success',
 });
 
@@ -383,6 +389,9 @@ const handleGlobalEsc = (e) => {
 
 // Lifecycle Hooks
 onMounted(() => {
+    if (globalThis?.document) {
+        globalThis.document.documentElement.dataset.theme = theme.value;
+    }
     checkAuth();
     if (typeof globalThis !== 'undefined' && globalThis.window) {
         globalThis.window.addEventListener('taipo:unauthorized', handleUnauthorized);
