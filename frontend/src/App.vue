@@ -45,6 +45,23 @@
                     </button>
                 </div>
 
+                <!-- Teams Modal Button -->
+                <div
+                    v-if="authUser?.is_instructor"
+                    class="flex-none ml-2 hidden sm:flex"
+                >
+                    <button
+                        @click="isTeamModalOpen = true"
+                        class="btn btn-outline btn-sm btn-secondary gap-2"
+                        title="Manage Teams"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        </svg>
+                        Teams
+                    </button>
+                </div>
+
                 <!-- Spacer & Centered Project Name -->
                 <div class="flex-1 flex justify-center">
                     <span
@@ -73,6 +90,13 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                     </button>
+                </div>
+
+                <!-- Display Username -->
+                <div class="flex-none mr-2">
+                    <span class="opacity-50">
+                        {{ authUser?.username }}
+                    </span>
                 </div>
 
                 <!-- Logout Button -->
@@ -147,6 +171,7 @@
             :code="generatedCode"
             :error="codeError"
             @close="isCodeModalOpen = false"
+            @regenerate="handleRegenerateCode"
         />
 
         <TaskQueryModal
@@ -168,6 +193,11 @@
         <ApiCostModal
             :is-open="isApiCostModalOpen"
             @close="isApiCostModalOpen = false"
+        />
+
+        <TeamModal
+            :is-open="isTeamModalOpen"
+            @close="isTeamModalOpen = false"
         />
 
         <!-- Global Toast Notification -->
@@ -205,6 +235,15 @@
             :is-open="isPrivacyModalOpen"
             @close="isPrivacyModalOpen = false"
         />
+
+        <ConfirmationModal
+            :is-open="isDecomposeConfirmOpen"
+            :message="`Are you sure you want to break down '${taskToDecompose?.description}' into smaller sub-tasks?` "
+            @confirm="proceedDecompose"
+            @close="isDecomposeConfirmOpen = false"
+            confirm-text="Decompose"
+            title="Decompose Task?"
+        />
     </div>
 </template>
 
@@ -217,8 +256,10 @@ import TaskQueryModal from './components/modals/TaskQueryModal.vue';
 import ApiCostModal from './components/modals/ApiCostModal.vue';
 import RequirementModal from './components/RequirementModal.vue';
 import PrivacyModal from './components/modals/PrivacyModal.vue';
+import TeamModal from './components/modals/TeamModal.vue';
 import LoginView from './components/LoginView.vue';
 import CookieBanner from './components/CookieBanner.vue';
+import ConfirmationModal from './components/modals/ConfirmationModal.vue';
 import { api } from './services/api';
 
 const isAuthenticated = ref(false);
@@ -237,8 +278,6 @@ const showGithubModal = ref(false);
 const drawerOpen = ref(false);
 const theme = ref('cupcake');
 
-const isPrivacyModalOpen = ref(false);
-
 const toggleTheme = () => {
     theme.value = theme.value === 'cupcake' ? 'light' : 'cupcake';
 };
@@ -256,11 +295,15 @@ const queryAnswer = ref('');
 const queryError = ref('');
 const queryTaskTarget = ref(null);
 
-// Requirements Modal State
+// Local specialized modals
 const isRequirementModalOpen = ref(false);
-
-// API Cost Modal State
 const isApiCostModalOpen = ref(false);
+const isPrivacyModalOpen = ref(false);
+const isTeamModalOpen = ref(false);
+
+// Decomposition Confirmation State
+const isDecomposeConfirmOpen = ref(false);
+const taskToDecompose = ref(null);
 
 // Global Notification State
 const notification = ref(null);
@@ -325,17 +368,32 @@ const handleUnauthorized = () => {
     showNotification("Session expired. Please log in again.", "warning");
 };
 
+const handleGlobalEsc = (e) => {
+    if (e.key === "Escape") {
+        isCodeModalOpen.value = false;
+        isQueryModalOpen.value = false;
+        isRequirementModalOpen.value = false;
+        isApiCostModalOpen.value = false;
+        isPrivacyModalOpen.value = false;
+        isTeamModalOpen.value = false;
+        isDecomposeConfirmOpen.value = false;
+        drawerOpen.value = false;
+    }
+};
+
 // Lifecycle Hooks
 onMounted(() => {
     checkAuth();
     if (typeof globalThis !== 'undefined' && globalThis.window) {
         globalThis.window.addEventListener('taipo:unauthorized', handleUnauthorized);
+        globalThis.window.addEventListener('keydown', handleGlobalEsc);
     }
 });
 
 onBeforeUnmount(() => {
     if (typeof globalThis !== 'undefined' && globalThis.window) {
         globalThis.window.removeEventListener('taipo:unauthorized', handleUnauthorized);
+        globalThis.window.removeEventListener('keydown', handleGlobalEsc);
     }
 });
 
@@ -409,8 +467,14 @@ const enrichTasksWithSubtaskInfo = () => {
     });
 };
 
-const handleDecompose = async (task) => {
-    if (!confirm(`Are you sure you want to decompose "${task.description}"?`)) return;
+const handleDecompose = (task) => {
+    taskToDecompose.value = task;
+    isDecomposeConfirmOpen.value = true;
+};
+
+const proceedDecompose = async () => {
+    const task = taskToDecompose.value;
+    if (!task) return;
 
     loading.value = true;
     try {
@@ -424,19 +488,44 @@ const handleDecompose = async (task) => {
         showNotification("Failed to decompose task: " + mainMsg, "error", details);
     } finally {
         loading.value = false;
+        isDecomposeConfirmOpen.value = false;
+        taskToDecompose.value = null;
     }
 };
 
 const handleGenerateCode = async (task) => {
     isCodeModalOpen.value = true;
+
+    // If we already have the code, don't generate again
+    if (task.generated_code) {
+        generatedCode.value = task.generated_code;
+        codeLoading.value = false;
+        codeError.value = '';
+        currentTaskForCode.value = task;
+        return;
+    }
+
+    currentTaskForCode.value = task;
+    await proceedGenerateCode(task);
+};
+
+const handleRegenerateCode = async () => {
+    if (!currentTaskForCode.value) return;
+    await proceedGenerateCode(currentTaskForCode.value);
+};
+
+const proceedGenerateCode = async (task) => {
     codeLoading.value = true;
     generatedCode.value = '';
     codeError.value = '';
 
     try {
         const res = await api.generateCode(task.id, task.description);
+        // Res.code now contains the raw Markdown from the backend
         if (res.success && res.code) {
             generatedCode.value = res.code;
+            // Update the local task object so it reflects the change immediately
+            task.generated_code = res.code;
         } else {
             codeError.value = res.error || "Failed to generate code.";
         }
@@ -444,7 +533,7 @@ const handleGenerateCode = async (task) => {
         codeError.value = e.response?.data?.error || e.message;
     } finally {
         codeLoading.value = false;
-        // Refresh to show robot icon
+        // Refresh to show robot icon if it was the first time
         await refreshTasks();
     }
 };

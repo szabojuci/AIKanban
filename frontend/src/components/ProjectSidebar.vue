@@ -257,11 +257,21 @@
                 </div>
             </div>
         </dialog>
+
+        <ConfirmationModal
+            :is-open="isAlertOpen"
+            :title="alertTitle"
+            :message="alertMessage"
+            :is-danger="isAlertDanger"
+            is-alert
+            @close="isAlertOpen = false"
+        />
     </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from "vue";
+import ConfirmationModal from "./modals/ConfirmationModal.vue";
 import { api } from "../services/api";
 
 const props = defineProps({
@@ -291,20 +301,21 @@ const projectLoadError = ref(null);
 const isRenameModalOpen = ref(false);
 const renameName = ref("");
 
+// Alert State
+const isAlertOpen = ref(false);
+const alertTitle = ref("Notification");
+const alertMessage = ref("");
+const isAlertDanger = ref(false);
+
+const showAlert = (title, message, isDanger = false) => {
+    alertTitle.value = title;
+    alertMessage.value = message;
+    isAlertDanger.value = isDanger;
+    isAlertOpen.value = true;
+};
+
 const supportedLanguages = ref([]);
 const languagePrompts = ref({});
-
-onMounted(async () => {
-    try {
-        const defaults = await api.getProjectDefaults();
-        if (defaults.success) {
-            supportedLanguages.value = defaults.languages;
-            languagePrompts.value = defaults.prompts;
-        }
-    } catch (e) {
-        console.error("Failed to load project defaults", e);
-    }
-});
 
 const loadDefaultPrompt = (language) => {
     // Auto-fill project name if empty or generic
@@ -337,7 +348,7 @@ const handleFileUpload = async (event) => {
         if (!text.trim()) return;
 
         loading.value = true;
-        const res = await api.createProjectFromSpec(text);
+        const res = await api.createProjectFromSpec(text, null);
         if (res.success) {
             await fetchProjects();
             if (res.projectName) {
@@ -347,7 +358,7 @@ const handleFileUpload = async (event) => {
         }
     } catch (err) {
         console.error(err);
-        alert("Error generating project from spec: " + (err.response?.data?.error || err.message));
+        showAlert("Upload Error", (err.response?.data?.error || err.message), true);
     } finally {
         loading.value = false;
         // Reset input
@@ -359,7 +370,7 @@ const handleGenerate = async () => {
     if (!projectName.value || !prompt.value) return;
     loading.value = true;
     try {
-        await api.generateTasks(projectName.value, prompt.value);
+        await api.generateTasks(projectName.value, prompt.value, null);
         // Assuming generation automatically sets it as current or we trigger a reload
         // Refetch to get ID
         await fetchProjects();
@@ -370,7 +381,7 @@ const handleGenerate = async () => {
         prompt.value = "";
         projectName.value = "";
     } catch (e) {
-        alert("Error generating project: " + (e.response?.data?.error || e.message));
+        showAlert("Generation Failed", (e.response?.data?.error || e.message), true);
     } finally {
         loading.value = false;
     }
@@ -380,18 +391,18 @@ const handleCreateEmpty = async () => {
     if (!projectName.value) return;
     loading.value = true;
     try {
-        await api.createProject(projectName.value);
+        await api.createProject(projectName.value, null);
         await fetchProjects();
         selectProjectByName(projectName.value);
         drawerOpen.value = false;
     } catch (e) {
-        alert("Error creating project: " + (e.response?.data?.error || e.message));
+        showAlert("Creation Failed", (e.response?.data?.error || e.message), true);
     } finally {
         loading.value = false;
     }
 };
 
-const openRenameModal = () => {
+const openRenameModal = async () => {
     if (selectedProject.value) {
         renameName.value = selectedProject.value.name;
         isRenameModalOpen.value = true;
@@ -402,6 +413,7 @@ const handleRename = async () => {
     if (!selectedProject.value || !renameName.value) return;
     try {
         await api.renameProject(selectedProject.value.id, renameName.value);
+        
         // Optimization: update local state immediately
         selectedProject.value.name = renameName.value;
         const p = projects.value.find((p) => p.id === selectedProject.value.id);
@@ -414,7 +426,7 @@ const handleRename = async () => {
 
         await fetchProjects(); // Refresh to be sure
     } catch (e) {
-        alert("Error renaming project: " + (e.response?.data?.error || e.message));
+        showAlert("Rename Failed", (e.response?.data?.error || e.message), true);
     }
 };
 
@@ -431,7 +443,7 @@ const handleDelete = async () => {
 
     // Strict confirmation
     if (deleteConfirmationText.value !== 'delete' && deleteConfirmationText.value !== selectedProject.value.name) {
-        alert("Please type 'delete' or the project name to confirm.");
+        showAlert("Validation Required", "Please type 'delete' or the exact project name to confirm.", true);
         return;
     }
 
@@ -443,7 +455,7 @@ const handleDelete = async () => {
         emit("project-selected", null); // Clear selection
         await fetchProjects();
     } catch (e) {
-        alert("Error deleting project: " + (e.response?.data?.error || e.message));
+        showAlert("Deletion Failed", (e.response?.data?.error || e.message), true);
     }
 };
 
@@ -523,7 +535,16 @@ const fetchProjects = async () => {
     }
 };
 
-onMounted(() => {
+onMounted(async () => {
+    try {
+        const defaults = await api.getProjectDefaults();
+        if (defaults.success) {
+            supportedLanguages.value = defaults.languages;
+            languagePrompts.value = defaults.prompts;
+        }
+    } catch (e) {
+        console.error("Failed to load project defaults", e);
+    }
     fetchProjects();
 });
 </script>

@@ -3,7 +3,6 @@
 namespace App\Controller;
 
 use App\Service\ProjectService;
-use App\Service\TaskService;
 use App\Config;
 use Exception;
 use App\Exception\ProjectNotFoundException;
@@ -14,18 +13,18 @@ use App\Prompts;
 class ProjectController
 {
     private ProjectService $projectService;
-    private ?TaskService $taskService;
-
-    public function __construct(ProjectService $projectService, ?TaskService $taskService = null)
+ 
+    public function __construct(ProjectService $projectService)
     {
         $this->projectService = $projectService;
-        $this->taskService = $taskService;
     }
 
     public function handleList()
     {
         try {
-            $projects = $this->projectService->getAllProjects();
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $projects = $this->projectService->getAllProjects($userId, $isInstructor);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'projects' => $projects]);
         } catch (Exception $e) {
@@ -50,7 +49,9 @@ class ProjectController
         }
 
         try {
-            $id = $this->projectService->createProject($name);
+            $userId = $_SESSION['user_id'] ?? null;
+            $teamId = filter_var($_POST['team_id'] ?? null, FILTER_VALIDATE_INT) ?: null;
+            $id = $this->projectService->createProject($name, $userId, $teamId);
             header(Config::APP_JSON);
             echo json_encode(['success' => true, 'id' => $id, 'name' => $name]);
         } catch (ProjectAlreadyExistsException $e) {
@@ -118,57 +119,6 @@ class ProjectController
         }
     }
 
-    public function handleCreateFromSpec()
-    {
-        $spec = $_POST['spec'] ?? '';
-
-        if (empty($spec)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Specification content is required.']);
-            return;
-        }
-
-        if (!$this->taskService) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'TaskService not available.']);
-            return;
-        }
-
-        try {
-            // 1. Analyze Spec
-            $result = $this->taskService->analyzeSpec($spec);
-            $projectName = $result['name'];
-            $tasks = $result['tasks'];
-
-            if (empty($projectName)) {
-                $projectName = "Project " . date('Y-m-d H:i:s');
-            }
-
-            // 2. Create Project
-            try {
-                $projectId = $this->projectService->createProject($projectName);
-            } catch (ProjectAlreadyExistsException $e) {
-                // If exists, maybe append timestamp? Or just use existing?
-                // For now, let's append a random suffix
-                $projectName .= " " . substr(md5(uniqid()), 0, 4);
-                $projectId = $this->projectService->createProject($projectName);
-            }
-
-            // 3. Create Tasks
-            $this->taskService->replaceProjectTasks($projectName, $tasks);
-
-            header(Config::APP_JSON);
-            echo json_encode(['success' => true, 'projectName' => $projectName, 'projectId' => $projectId]);
-        } catch (GeminiApiException $e) {
-            $code = $e->getCode() ?: 502;
-            http_response_code($code);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        } catch (Exception $e) {
-            http_response_code(500);
-            error_log("Error generating project from spec: " . $e->getMessage());
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    }
 
     public function handleGetDefaults()
     {

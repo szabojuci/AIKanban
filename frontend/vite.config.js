@@ -6,11 +6,12 @@ export default defineConfig({
     plugins: [vue()],
     server: {
         proxy: {
-            '/api': {
+            '/TAIPO/api': {
                 target: 'http://localhost:8000',
                 changeOrigin: true,
-                rewrite: (path) => path.replace(/^\/api/, '')
+                rewrite: (path) => path.replace(/^\/TAIPO\/api/, '')
             }
         }
-    }
+    },
+    base: '/TAIPO/'
 })
