@@ -38,14 +38,22 @@ class ProjectService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function createProject(string $name, ?int $userId = null, ?int $teamId = null): int
+    public function createProject(string &$name, ?int $userId = null, ?int $teamId = null): int
     {
         $prefix = Config::getTablePrefix();
-        // Check if exists
-        $stmt = $this->pdo->prepare("SELECT id FROM {$prefix}projects WHERE name = :name");
-        $stmt->execute([':name' => $name]);
-        if ($stmt->fetch()) {
-            throw new ProjectAlreadyExistsException("Project '{$name}' already exists.");
+        $originalName = $name;
+        $counter = 1;
+        while (true) {
+            $stmt = $this->pdo->prepare("SELECT id FROM {$prefix}projects WHERE name = :name");
+            $stmt->execute([':name' => $name]);
+            if (!$stmt->fetch()) {
+                break;
+            }
+            $name = $originalName . ' (' . date('Y-m-d H:i') . ')';
+            if ($counter > 1) {
+                $name .= " $counter";
+            }
+            $counter++;
         }
 
         $prefix = Config::getTablePrefix();

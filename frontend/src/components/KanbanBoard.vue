@@ -7,7 +7,7 @@
         >
             <!-- Column Header -->
             <div
-                :class="`p-4 rounded-t-box font-bold flex justify-between items-center bg-${getResultingColor(style)} text-primary-content`"
+                :class="['p-4 rounded-t-box font-bold flex justify-between items-center', getColumnHeaderClasses(style)]"
             >
                 <span>{{ formatColumnTitle(title) }}</span>
                 <div v-if="parseWipLimit(title) === Infinity" class="badge badge-ghost">
@@ -136,10 +136,21 @@ const isTaskModalOpen = ref(false);
 const taskToEdit = ref(null);
 const isTaskModalReadOnly = ref(false);
 
-const getResultingColor = (style) => {
+const getColumnHeaderClasses = (style) => {
+    // Tailwind requires full class names to prevent purging
+    const classMap = {
+        'info': 'bg-info text-info-content',
+        'primary': 'bg-primary text-primary-content',
+        'warning': 'bg-warning text-warning-content',
+        'error': 'bg-error text-error-content',
+        'success': 'bg-success text-success-content',
+        'neutral': 'bg-neutral text-neutral-content'
+    };
+    
     // Mapping internal style names to DaisyUI/Tailwind colors if needed
-    if (style === "danger") return "error";
-    return style;
+    const normalizedStyle = style === "danger" ? "error" : style;
+    
+    return classMap[normalizedStyle] || 'bg-base-300 text-base-content';
 };
 
 const onDraggableChange = async (event, newStatus) => {

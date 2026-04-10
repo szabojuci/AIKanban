@@ -2,16 +2,16 @@
     <div
         v-if="isOpen"
         @click.self="handleCancel"
-        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200"
+        class="fixed inset-0 bg-neutral/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200"
     >
-        <div class="relative w-full max-w-md bg-slate-800 border border-slate-700/50 shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in duration-200">
+        <div class="relative w-full max-w-md bg-base-100 border border-base-300 shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in duration-200">
             <div class="p-6">
                 <!-- Icon and Title -->
                 <div class="flex items-center gap-4 mb-4">
                     <div
                         :class="[
                             'w-12 h-12 rounded-full flex items-center justify-center shrink-0',
-                            isDanger ? 'bg-red-500/10 text-red-500' : 'bg-indigo-500/10 text-indigo-500'
+                            isDanger ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'
                         ]"
                     >
                         <svg v-if="isDanger" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -22,10 +22,10 @@
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-xl font-bold text-white leading-tight">{{ title }}</h3>
+                        <h3 class="text-xl font-bold text-base-content leading-tight">{{ title }}</h3>
                         <p
                             v-if="message"
-                            class="mt-1 text-slate-400 text-sm leading-relaxed"
+                            class="mt-1 text-base-content/70 text-sm leading-relaxed"
                         >
                             {{ message }}
                         </p>
@@ -39,8 +39,8 @@
                         :class="[
                             'px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 shadow-lg',
                             isDanger 
-                                ? 'bg-red-600 hover:bg-red-500 active:bg-red-700 text-white shadow-red-900/20'
-                                : 'bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white shadow-indigo-900/20'
+                                ? 'bg-error hover:bg-error/90 text-error-content shadow-error/20'
+                                : 'bg-primary hover:bg-primary/90 text-primary-content shadow-primary/20'
                         ]"
                     >
                         {{ confirmText }}
@@ -48,7 +48,7 @@
                     <button
                         v-if="!isAlert"
                         @click="handleCancel"
-                        class="px-6 py-2.5 rounded-xl font-semibold text-sm text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all duration-200"
+                        class="px-6 py-2.5 rounded-xl font-semibold text-sm text-base-content/70 hover:text-base-content hover:bg-base-200 transition-all duration-200"
                     >
                         {{ cancelText }}
                     </button>
