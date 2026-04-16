@@ -43,6 +43,8 @@ class DatabaseConfig
                     user_id INTEGER DEFAULT NULL,
                     team_id INTEGER DEFAULT NULL,
                     is_archived INTEGER DEFAULT 0,
+                    last_comment_at DATETIME DEFAULT NULL,
+                    last_cr_at DATETIME DEFAULT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE RESTRICT
                 )",

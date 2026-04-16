@@ -2,29 +2,35 @@
 
 namespace App;
 
-use App\Service\TaskService;
-use App\Service\ProjectService;
-use App\Service\GitHubService;
-use App\Service\ApplicationService;
-use App\Service\GeminiService;
+use App\Config;
+use App\Database;
+use App\Utils;
+use Dotenv\Dotenv;
+use Exception;
+
 use App\Configuration\GeminiConfig;
-use App\Controller\TaskController;
-use App\Controller\ProjectController;
-use App\Controller\SettingsController;
-use App\Controller\RequirementController;
-use App\Controller\AuthController;
-use App\Controller\TeamController;
-use App\Service\SettingsService;
-use App\Service\RequirementService;
-use App\Service\TeamService;
-use App\Service\TaskAiService;
+
 use App\Exception\GeminiApiException;
 use App\Exception\ProjectAlreadyExistsException;
-use App\Utils;
-use App\Config;
-use Exception;
-use App\Database;
-use Dotenv\Dotenv;
+
+use App\Service\ApplicationService;
+use App\Service\GeminiService;
+use App\Service\GitHubService;
+use App\Service\PoActivityService;
+use App\Service\ProjectService;
+use App\Service\RequirementService;
+use App\Service\SettingsService;
+use App\Service\TaskAiService;
+use App\Service\TaskService;
+use App\Service\TeamService;
+
+use App\Controller\AuthController;
+use App\Controller\ProjectController;
+use App\Controller\RequirementController;
+use App\Controller\SettingsController;
+use App\Controller\TaskController;
+use App\Controller\TeamController;
+
 
 class Application
 {
@@ -41,6 +47,7 @@ class Application
     private AuthController $authController;
     private TeamController $teamController;
     private TeamService $teamService;
+    private PoActivityService $poActivityService;
 
     public function run()
     {
@@ -254,6 +261,7 @@ class Application
         $kanbanTasks = [];
         // Only load tasks if authenticated
         if (isset($_SESSION['user_id'])) {
+            $this->poActivityService->tick($currentProjectName, (int)$_SESSION['user_id']);
             $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
         }
 
@@ -318,6 +326,7 @@ class Application
             $this->authController = new AuthController($pdo);
             $this->teamService = new TeamService($pdo);
             $this->teamController = new TeamController($this->teamService);
+            $this->poActivityService = new PoActivityService($pdo, $this->geminiService, $database->getDbType());
         } catch (Exception $e) {
             $error = $e->getMessage();
         }
