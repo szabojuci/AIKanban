@@ -119,7 +119,17 @@ Once the commit is successful, the app automatically moves the task to the **DON
 
 ---
 
-### 11. 🌙 UI / UX Features
+### 11. 🤖 Autonomous PO Simulator (Simulation Engine)
+
+TAIPO now acts as a proactive Product Owner by simulating background activity.
+
+* **Check-in Comments**: Every **2 hours** (during working hours), TAIPO will pick a task and add a professional, Jira-style comment asking for progress or offering guidance.
+* **Change Requests**: Approximately every **3 days**, TAIPO will generate a realistic, unforeseen **Change Request** and add it to the *Sprint Backlog* to simulate project dynamics.
+* **Working Hours**: The simulation is active between **8:00 AM and 4:00 PM** (Mon-Fri) to reflect a standard industrial environment.
+
+---
+
+### 12. 🌙 UI / UX Features
 
 * **Dark Mode** – Toggle between themes using the **Moon/Sun (🌙 / ☀️)** icon  
 * **Importance Tagging** – Click the proper **Star (![Empty](assets/star-empty.svg))** to mark the priority of a task  

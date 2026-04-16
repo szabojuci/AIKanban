@@ -100,6 +100,9 @@ This request triggers the **AI Brainstorming** flow, creating the project and po
 
 Returns the dashboard data. If `Accept: application/json` is sent or `?api=1` query param is used, it returns the Kanban board state as JSON.
 
+> [!IMPORTANT]
+> **Autonomous Simulation Heartbeat:** Every time this endpoint is called, the backend triggers the **Autonomous PO Simulation** engine. If the interval has passed (2h for comments, 3d for CRs) and it is currently working hours (8AM-4PM), TAIPO will automatically update the project state before returning the response.
+
 **Response Fields:**
 
 - `currentProjectName`: String - Name of the active project.

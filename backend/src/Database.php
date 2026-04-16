@@ -4,8 +4,8 @@ namespace App;
 
 use PDO;
 use Exception;
-use App\Exception\DatabaseConnectionException;
 use App\Configuration\DatabaseConfig;
+use App\Exception\DatabaseConnectionException;
 
 class Database
 {
@@ -203,7 +203,7 @@ class Database
         $this->migrateTaskTitles();
 
         // Project and Usage migrations
-        $this->ensureColumnsExist($prefix . 'projects', ['user_id', 'team_id', 'is_archived']);
+        $this->ensureColumnsExist($prefix . 'projects', ['user_id', 'team_id', 'is_archived', 'last_comment_at', 'last_cr_at']);
         $this->ensureColumnsExist($prefix . 'api_usage', ['user_id', 'team_id']);
 
         // User migrations
@@ -325,6 +325,14 @@ class Database
                 'default' => ($dbType === 'pgsql' || $dbType === 'oci' ? 'CURRENT_TIMESTAMP' : "'2026-03-16 13:20:00'")
             ],
             'is_archived' => ['type' => 'INTEGER', 'default' => '0'],
+            'last_comment_at' => [
+                'type' => ($dbType === 'pgsql' || $dbType === 'oci' ? 'TIMESTAMP' : 'DATETIME'),
+                'default' => 'NULL'
+            ],
+            'last_cr_at' => [
+                'type' => ($dbType === 'pgsql' || $dbType === 'oci' ? 'TIMESTAMP' : 'DATETIME'),
+                'default' => 'NULL'
+            ],
             'title' => ['type' => ($dbType === 'oci' ? 'VARCHAR2(255)' : 'VARCHAR(255)'), 'default' => 'NULL'],
             'po_comments' => ['type' => ($dbType === 'oci' ? 'CLOB' : 'TEXT'), 'default' => 'NULL'],
             'generated_code' => ['type' => ($dbType === 'oci' ? 'CLOB' : 'TEXT'), 'default' => 'NULL'],
@@ -334,7 +342,7 @@ class Database
         return $definitions[$col] ?? ['type' => ($dbType === 'oci' ? 'VARCHAR2(255)' : 'TEXT'), 'default' => 'NULL'];
     }
 
-    private function getDbType(): string
+    public function getDbType(): string
     {
         $sqliteFile = $this->dbConfig['sqlite_file'] ?? null;
         if (!empty($sqliteFile) && strcasecmp($sqliteFile, 'None') !== 0) {
