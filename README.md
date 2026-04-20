@@ -1,12 +1,14 @@
-# 🤖 AI-Driven Kanban Board
+# 🤖 TAIPO: AI-Driven Kanban Board
 
-An intelligent, web-based **Agile Project Management Tool** that integrates **Generative AI** with modern DevOps workflows. This system not only visualizes tasks but also automates project planning and source code generation, with direct deployment to GitHub.
+An intelligent, web-based **Agile Project Management Tool** that integrates **Generative AI** with modern DevOps workflows. TAIPO simulates a **Product Owner** by automatically generating user stories, providing sprint feedback, and introducing requirement changes — all powered by the Google Gemini API.
 
 ---
 
 ## 🌟 Overview
 
-The **AI-Driven Kanban Board** is designed to enhance software development efficiency. By leveraging the **Google Gemini API**, it can brainstorm entire project backlogs and write Java code for specific tasks. It enforces Agile discipline through **Work In Progress (WIP) limits** and streamlines the version control process via **GitHub API** integration.
+**TAIPO** (Teaching AI Product Owner) is designed to enhance software development education and efficiency. By leveraging the **Google Gemini API**, it can brainstorm entire project backlogs, decompose user stories into tasks, generate source code, and simulate realistic PO behavior through autonomous comments and change requests. It enforces Agile discipline through **Work In Progress (WIP) limits** and streamlines the version control process via **GitHub API** integration.
+
+For empirical evaluation, see the [Use Case Study](USE_CASE_STUDY.md).
 
 ---
 
@@ -100,7 +102,7 @@ When you are ready to implement a feature:
 2. Select **"Generate Code"**.  
 
 **AI Logic:**  
-The system sends the task description to **Gemini**, which returns a functional **Java code snippet**.
+The system sends the task description to **Gemini**, which returns a functional **source code snippet** (supporting Python, PHP, Rust, Java, TypeScript, and more).
 
 ---
 
@@ -109,10 +111,10 @@ The system sends the task description to **Gemini**, which returns a functional 
 The final step is integrating your code into your repository:
 
 1. In the code preview window, click the **GitHub icon**.  
-2. The app sends a **PUT request** to the GitHub API.  
+2. The app sends a **POST request** to the backend, which then pushes the code to GitHub via a **PUT request**.  
 
 **Success:**  
-The code is saved as a new `.java` file in your repository.
+The code is saved as a new source file (e.g., `.py`, `.php`, `.rs`, `.java`, `.ts`) in your repository.
 
 **Automation:**  
 Once the commit is successful, the app automatically moves the task to the **DONE** column.
@@ -132,12 +134,12 @@ TAIPO now acts as a proactive Product Owner by simulating background activity.
 ### 12. 🌙 UI / UX Features
 
 * **Dark Mode** – Toggle between themes using the **Moon/Sun (🌙 / ☀️)** icon  
-* **Importance Tagging** – Click the proper **Star (![Empty](assets/star-empty.svg))** to mark the priority of a task  
+* **Importance Tagging** – Click the proper **Star (![Empty](assets/star-empty.svg))** to mark the priority of a task
   * **(![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg))** NO priority
   * **(![Low](assets/star-yellow.svg)![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg))** LOW priority
   * **(![Low](assets/star-yellow.svg)![Medium](assets/star-orange.svg)![Empty](assets/star-empty.svg))** MEDIUM priority
   * **(![Low](assets/star-yellow.svg)![Medium](assets/star-orange.svg)![High](assets/star-red.svg))** HIGH priority
-* **Inline Editing** – Modify task descriptions directly on the board by selecting **"Edit"** from the task menu  
+* **Inline Editing** – Modify task descriptions directly on the board by selecting **"Edit"** from the task menu
 
 ---
 
@@ -158,9 +160,87 @@ If the AI does not return tasks in the correct format, try refreshing the prompt
 
 ---
 
+## 🐳 Docker Deployment
+
+The recommended way to deploy TAIPO for production or evaluation:
+
+### Quick Start
+
+1. Copy your `.env` file to the project root (or `backend/.env`):
+
+    ```bash
+    cp backend/.env.example backend/.env
+    # Edit backend/.env with your API keys
+    ```
+
+2. Build and run with Docker Compose:
+
+    ```bash
+    docker compose up --build -d
+    ```
+
+3. Open `http://localhost:8080` in your browser.
+
+### Environment Variables
+
+All configuration is passed via environment variables (see `.env.example`). Key variables:
+
+| Variable               | Required | Description                                   |
+|------------------------|----------|-----------------------------------------------|
+| `GEMINI_API_KEY`       | ✅       | Google Gemini API key                         |
+| `GITHUB_TOKEN`         | ✅       | GitHub PAT with `repo` scope                  |
+| `GITHUB_USERNAME`      | ✅       | GitHub username for commits                   |
+| `GITHUB_REPO`          | ✅       | Target repository name                        |
+| `PROJECT_NAME`         | ❌       | Display name (default: `TAIPO: AI-Kanban`)    |
+| `REGISTRATION_ENABLED` | ❌       | Allow new user registration (default: `true`) |
+
+### Stopping
+
+```bash
+docker compose down
+```
+
+Data is persisted in a Docker volume (`taipo-data`).
+
+---
+
+## 🧪 Testing
+
+TAIPO includes both backend and frontend test suites.
+
+### Backend (PHPUnit)
+
+```bash
+cd backend
+composer install
+vendor/bin/phpunit
+```
+
+Tests cover: Config, Database schema, TaskService, ProjectService, GeminiService, and PoActivityService.
+
+### Frontend (Vitest)
+
+```bash
+cd frontend
+pnpm install
+pnpm test
+```
+
+Tests cover: API service payloads, App.vue authentication flow, KanbanBoard rendering, and TaskCard interactions.
+
+---
+
 ## 📝 Academic Background
 
 * **Author:** Judit Szabó *(Software Engineering Student)*  
 * **Contributor:** Mihaly Nyilas *(Software Engineering Student)*  
 * **Supervisor:** Dr. Gábor Kusper  
 * **Institution:** Eszterházy Károly Catholic University  
+
+## 📚 Additional Documentation
+
+* [API Documentation](API_DOCUMENTATION.md)
+* [Database Schema](DATABASE_README.md)
+* [Project Structure](PROJECT.md)
+* [Development Roadmap](DEVPLAN.md)
+* [Use Case Study](USE_CASE_STUDY.md)
