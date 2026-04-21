@@ -77,6 +77,7 @@ Error Mockup:
 | `list_projects` | None | Returns a list of all available projects. |
 | `update_project` | `id`, `name` | Renames an existing project. |
 | `delete_project` | `id` | Deletes a project and all its tasks. |
+| `toggle_project_activity` | `id`, `is_active` (0/1) | Enables or disables the Autonomous PO Simulation for a specific project. |
 | `create_project_from_spec` | `spec` (string), `team_id` (opt) | Uses Gemini AI to automatically create a project and tasks from a text specification. |
 | `get_project_defaults` | None | Returns supported programming `languages` and their default `prompts`. |
 | `set_project_team` | `id` (project), `team_id` (null to unassign) | Assigns/Unassigns a project to a specific team. |

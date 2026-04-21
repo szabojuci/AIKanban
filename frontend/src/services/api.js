@@ -166,6 +166,14 @@ export const api = {
         });
     },
 
+    async toggleProjectActivity(id, isActive) {
+        return client.post('/', {
+            action: 'toggle_project_activity',
+            id: id,
+            is_active: isActive
+        });
+    },
+
     async getSetting(key) {
         const response = await client.get(`/?action=get_setting&key=${key}`);
         return response.data;

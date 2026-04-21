@@ -139,7 +139,7 @@ class Application
         // Protected Actions - Project Actions
         if (in_array($action, [
             'create_project', 'list_projects', 'update_project', 'delete_project',
-            'get_project_defaults', 'set_project_team',
+            'get_project_defaults', 'set_project_team', 'toggle_project_activity',
             'list_user_teams'
         ])) {
             $this->handleProjectAction($action);
@@ -429,6 +429,9 @@ class Application
             case 'delete_project': $this->projectController->handleDelete(); break;
             case 'get_project_defaults':
                 $this->projectController->handleGetDefaults();
+                exit;break;
+            case 'toggle_project_activity':
+                $this->projectController->handleToggleActivity();
                 exit;break;
             case 'set_project_team':
                 $id = (int)($_POST['id'] ?? 0);

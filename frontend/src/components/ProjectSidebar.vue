@@ -62,13 +62,12 @@
                                 id="promptInput"
                                 class="textarea textarea-bordered h-32 leading-relaxed"
                                 placeholder="Describe the project you want to build..."
-                            ></textarea>
+                            >
+                            </textarea>
                             <div class="pt-1 pb-0">
-                                <span class="label-text-alt text-warning"
-                                    >Note:<br>Prompts are sent to Google Gemini
-                                    API.<br>Do not include Personally
-                                    Identifiable Information (PII).</span
-                                >
+                                <span class="label-text-alt text-warning">
+                                    Note:<br>Prompts are sent to Google Gemini API.<br>Do not include Personally Identifiable Information (PII).
+                                </span>
                             </div>
                         </div>
 
@@ -81,7 +80,7 @@
                                 type="file"
                                 accept=".txt,.md"
                                 class="file-input file-input-bordered file-input-sm w-full"
-                            />
+                            >
                         </div>
 
                         <div class="grid grid-cols-2 gap-2">
@@ -147,11 +146,28 @@
                             @click="openRenameModal"
                             :disabled="!selectedProject || !selectedProject.id"
                             class="btn join-item btn-square"
-                            title="Rename Project"
+                            title="Project Settings"
                         >
                             ✎
                         </button>
                     </div>
+
+                    <!-- Simulation Toggle -->
+                    <div
+                        v-if="selectedProject && selectedProject.id"
+                        class="form-control mt-2 px-1"
+                    >
+                        <label class="label cursor-pointer justify-between p-0">
+                            <span class="label-text text-xs font-bold opacity-80">Simulation Active</span>
+                            <input
+                                :checked="selectedProject?.is_active == 1"
+                                @click="toggleActivity"
+                                type="checkbox"
+                                class="toggle toggle-xs toggle-primary"
+                            >
+                        </label>
+                    </div>
+
                     <button
                         v-if="projectLoadError"
                         @click="fetchProjects"
@@ -200,6 +216,19 @@
                             class="input input-bordered w-full mb-4"
                             placeholder="New Name"
                         >
+
+                        <div class="form-control mb-4">
+                            <label class="label cursor-pointer justify-start gap-4">
+                                <input
+                                    :checked="selectedProject?.is_active == 1"
+                                    @change="toggleActivity"
+                                    type="checkbox"
+                                    class="toggle toggle-primary"
+                                >
+                                <span class="label-text font-bold">Product Owner Simulation (AI Comments/CRs)</span>
+                            </label>
+                            <span class="text-xs opacity-60 ml-14">When enabled, the AI Product Owner will periodically comment on tasks and generate Change Requests.</span>
+                        </div>
 
                         <div class="divider">DANGER ZONE</div>
                         <button
@@ -456,6 +485,22 @@ const handleDelete = async () => {
         await fetchProjects();
     } catch (e) {
         showAlert("Deletion Failed", (e.response?.data?.error || e.message), true);
+    }
+};
+
+const toggleActivity = async (event) => {
+    if (!selectedProject.value) return;
+    const isActive = event.target.checked;
+    try {
+        await api.toggleProjectActivity(selectedProject.value.id, isActive);
+        selectedProject.value.is_active = isActive ? 1 : 0;
+        // Also update in projects list
+        const p = projects.value.find(p => p.id === selectedProject.value.id);
+        if (p) p.is_active = isActive ? 1 : 0;
+    } catch (e) {
+        showAlert("Update Failed", (e.response?.data?.error || e.message), true);
+        // Revert UI if failed
+        event.target.checked = !isActive;
     }
 };
 
