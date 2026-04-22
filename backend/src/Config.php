@@ -101,6 +101,9 @@ class Config
 
     public static function isOffline(): bool
     {
+        if (($_ENV['TAIPO_OFFLINE'] ?? getenv('TAIPO_OFFLINE')) === 'true') {
+            return true;
+        }
         $rootDir = realpath(__DIR__ . '/../../');
         return is_dir($rootDir . '/__OFFLINE') || file_exists($rootDir . '/.offline');
     }
