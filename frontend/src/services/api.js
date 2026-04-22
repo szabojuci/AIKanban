@@ -115,6 +115,24 @@ export const api = {
         return response.data;
     },
 
+    async commitToGithub(taskId, code, description) {
+        // Retrieves GitHub credentials from sessionStorage (set by GitHub login)
+        const token = sessionStorage.getItem('githubToken');
+        const username = sessionStorage.getItem('githubUsername');
+        const repo = sessionStorage.getItem('githubRepo');
+
+        const response = await client.post('/', {
+            action: 'commit_to_github',
+            task_id: taskId,
+            code: code,
+            description: description,
+            user_token: token,
+            user_username: username,
+            user_repo: repo
+        });
+        return response.data;
+    },
+
     async decomposeTask(taskId, description, currentProject) {
         const response = await client.post('/', {
             action: 'decompose_task',

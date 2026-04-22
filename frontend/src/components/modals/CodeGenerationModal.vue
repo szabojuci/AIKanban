@@ -59,7 +59,8 @@
                         <div
                             v-html="formattedCode"
                             class="bg-base-100 border border-base-300 rounded-2xl p-6 shadow-inner text-base-content selection:bg-primary/20"
-                        ></div>
+                        >
+                        </div>
                     </div>
                 </div>
             </div>
@@ -77,6 +78,15 @@
                     Regenerate
                 </button>
                 <div class="flex gap-2">
+                    <button
+                        v-if="code && !loading && canCommit"
+                        @click="$emit('commit')"
+                        class="btn btn-primary btn-sm gap-2 shadow-md hover:scale-105 transition-transform"
+                        title="Commit to GitHub (Moves task to DONE)"
+                    >
+                        <img src="../../images/github.svg" class="w-4 h-4 invert" alt="GitHub">
+                        Commit
+                    </button>
                     <button
                         @click="$emit('close')"
                         class="btn btn-ghost px-6 shadow-sm"
@@ -103,13 +113,20 @@ const props = defineProps({
     loading: Boolean,
     code: String,
     error: String,
+    task: Object,
 });
 
-const emit = defineEmits(['close', 'regenerate']);
+const emit = defineEmits(['close', 'regenerate', 'commit']);
 
 const formattedCode = computed(() => {
     if (!props.code) return '';
     return marked.parse(props.code);
+});
+
+const canCommit = computed(() => {
+    if (!props.task) return false;
+    // Commits are only allowed from REVIEW column per JIRA-style process
+    return props.task.status?.toUpperCase().includes('REVIEW');
 });
 
 const copyTooltip = ref('Copy Code');
