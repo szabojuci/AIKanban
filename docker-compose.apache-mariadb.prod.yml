@@ -47,7 +47,7 @@ services:
       - taipo-network
 
   mariadb:
-    image: mariadb:11.4-alpine
+    image: mariadb:11.4
     container_name: taipo-db-mariadb-prod
     environment:
       - MARIADB_DATABASE=${DB_NAME:-taipo}

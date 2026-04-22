@@ -207,6 +207,8 @@ TAIPO features a **modern, dual-stack Docker infrastructure** that supports mult
 
 You can switch between **Nginx/Apache** and **MariaDB/Postgres/MySQL** using Docker Profiles:
 
+Note: the MariaDB service uses the stable `mariadb:11.4` image tag.
+
 ```bash
 # Example: Nginx + PostgreSQL
 DB_TYPE=pgsql DB_HOST=postgres SQLITE_FILE_NAME=None docker compose --profile nginx --profile postgres up -d --build

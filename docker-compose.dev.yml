@@ -97,7 +97,7 @@ services:
   # ------------------------------------------------------------
   db:
     profiles: ["db"]
-    image: mariadb:11.4-alpine
+    image: mariadb:11.4
     container_name: taipo-db-dev
     environment:
       - MARIADB_DATABASE=${DB_NAME:-taipo_dev}

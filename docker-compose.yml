@@ -85,7 +85,7 @@ services:
   # MariaDB (Default)
   mariadb:
     profiles: ["mariadb", "all"]
-    image: mariadb:11.4-alpine
+    image: mariadb:11.4
     container_name: taipo-db-mariadb
     environment:
       - MARIADB_DATABASE=${DB_NAME:-taipo}
