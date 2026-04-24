@@ -36,10 +36,17 @@ COPY --from=frontend-build /app/frontend/dist ./backend/public/dist/
 # VirtualHost and permissions
 RUN echo 'ServerName localhost \n\
 DocumentRoot "/var/www/html/backend/public" \n\
-<Directory "/var/www/html/backend/public"> \n\
+# Serve frontend at /TAIPO/ \n\
+Alias /TAIPO "/var/www/html/backend/public/dist" \n\
+<Directory "/var/www/html/backend/public/dist"> \n\
     AllowOverride All \n\
     Require all granted \n\
 </Directory> \n\
+# Proxy API at /TAIPO/api \n\
+<Location "/TAIPO/api"> \n\
+    ProxyPass "fcgi://127.0.0.1:9000/var/www/html/backend/public/index.php" \n\
+</Location> \n\
+# Fallback for PHP files \n\
 ProxyPassMatch ^/(.*\.php(/.*)?)$ \
     fcgi://127.0.0.1:9000/var/www/html/backend/public/$1' > /etc/apache2/conf.d/taipo.conf && \
     cd backend && composer install --no-dev --optimize-autoloader && \

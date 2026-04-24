@@ -87,8 +87,13 @@ class Application
         $error = $this->initServices();
 
         if ($error) {
-            // If DB connection fails, we can't do much but show error
-            echo "Critical Error: " . $error;
+            // If DB connection fails, we can't do much but show error via JSON
+            header(Config::APP_JSON, true, 500);
+            echo json_encode([
+                'success' => false,
+                'authenticated' => false,
+                'error' => "Critical Error: " . $error
+            ]);
             exit;
         }
 

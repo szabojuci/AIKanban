@@ -15,7 +15,7 @@ docker run -d -p 8080:80 --env-file .env taipo-app
 
 ---
 
-## 🚀 Multi-Container Stack (Recommended)
+## 🚀 Multi-Container Stack (Recommended for Advanced Users)
 
 The repository now ships with:
 
@@ -27,26 +27,49 @@ The repository now ships with:
 cp .env.example .env
 
 # Preset 1: Nginx + SQLite + PHP 8.5 (Alpine)
+# building and running
 docker compose -f docker-compose.nginx-sqlite.prod.yml up -d --build
 
 # Preset 2: Apache + MariaDB + PHP 8.5 (Alpine)
+# building and running
 docker compose -f docker-compose.apache-mariadb.prod.yml up -d --build
 
 # Preset 3: All-in-One + SQLite + PHP 8.5 (Alpine) [PROD]
+# building and running: DEFAULT PROFILE: Apache + SQLite
 docker compose -f docker-compose.all-in-one.prod.yml up -d --build
 
 # Preset 4: All-in-One + SQLite + PHP 8.5 [DEV]
+# building and running: DEFAULT PROFILE: Apache + SQLite
 docker compose -f docker-compose.all-in-one.dev.yml up --build
 
 # All-in-one: Apache + Nginx + MariaDB + PostgreSQL + MySQL (+ SQLite support in app)
+# building and running
 docker compose --profile all up -d --build
 ```
 
 The application will be available at:
 
-- `http://localhost:8080/TAIPO/` for Apache
-- `http://localhost:8081/TAIPO/` for Nginx
-- `http://localhost:8082/TAIPO/` for All-in-One
+- `http://localhost:8080/TAIPO/` for Apache with MariaDB
+- `http://localhost:8081/TAIPO/` for Nginx with SQLite
+- `http://localhost:8082/TAIPO/` for All-in-One (DEFAULT profile: Apache with SQLite)
+
+---
+
+## 🏗️ All-in-One Stack Details
+
+The **All-in-One** image is a "monolith" container that bundles Apache and PHP-FPM together. It is compatible with all database engines.
+
+### Running AIO with Custom Databases
+
+By default, AIO uses SQLite. To use it with other databases, use the same profile system:
+
+```bash
+# AIO + MariaDB
+docker compose -f docker-compose.all-in-one.prod.yml --profile mariadb up -d
+
+# AIO + PostgreSQL
+docker compose -f docker-compose.all-in-one.prod.yml --profile postgres up -d
+```
 
 ---
 
@@ -62,6 +85,8 @@ TAIPO supports **Docker Profiles**, allowing you to mix and match your preferred
 | **Nginx**      | `docker compose --profile nginx up`     | `8081`       |
 
 ### 🗄️ Database Engines
+
+MariaDB stacks use the stable `mariadb:11.4` image tag.
 
 | Engine         | Command                                 | `DB_TYPE` (.env) |
 | :--------------| :---------------------------------------| :----------------|
@@ -127,12 +152,14 @@ DB_TYPE=mysql          # options: mysql, pgsql, sqlite
 DB_HOST=mariadb        # matches the selected DB service name
 DB_NAME=taipo
 DB_USER=taipo_user
-DB_PASSWORD=taipo_password
+DB_PASS=taipo_password
 SQLITE_FILE_NAME=None  # set to data/kanban.sqlite for SQLite mode
 
 # Ports
 PORT_APACHE=8080
 PORT_NGINX=8081
+
+PORT_ALLINONE=8082
 ```
 
 ### 🔐 Passing API Keys in Docker

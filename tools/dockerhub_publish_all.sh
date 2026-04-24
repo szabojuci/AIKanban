@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Build and push TAIPO Docker images to Docker Hub.
 # Images covered:
-# 1) taipo-php-fpm
+# 1) taipo-app-php
 # 2) taipo-web-nginx
 # 3) taipo-web-apache
-# 4) taipo-all-in-one-prod
-# 5) taipo-all-in-one-dev
+# 4) taipo-aio-prod
+# 5) taipo-aio-dev
 # 6) taipo-frontend-dev
 #
 # Usage:
@@ -70,7 +70,7 @@ build_and_push() {
 }
 
 # 1) PHP-FPM service image (production stage)
-build_and_push "php-fpm" "Dockerfile.php" "." "production"
+build_and_push "app-php" "Dockerfile.php" "." "production"
 
 # 2) Nginx web image
 build_and_push "web-nginx" "Dockerfile.nginx" "."
@@ -79,13 +79,13 @@ build_and_push "web-nginx" "Dockerfile.nginx" "."
 build_and_push "web-apache" "Dockerfile.apache" "."
 
 # 4) All-in-one production image
-build_and_push "all-in-one-prod" "Dockerfile" "."
+build_and_push "aio-prod" "Dockerfile" "."
 
 # 5) All-in-one development image
-build_and_push "all-in-one-dev" "Dockerfile.all-in-one.dev" "."
+build_and_push "aio-dev" "Dockerfile.all-in-one.dev" "."
 
-# 6) Frontend dev image (context: frontend)
-build_and_push "frontend-dev" "Dockerfile.frontend.dev" "frontend"
+# 6) Frontend dev image
+build_and_push "frontend-dev" "Dockerfile.frontend.dev" "."
 
 echo ""
 echo "Done. Published tag: ${DATE_TAG}"

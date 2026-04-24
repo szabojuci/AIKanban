@@ -8,19 +8,15 @@ ADD https://github.com/mlocati/docker-php-extension-installer/releases/latest/do
 
 RUN apk add --no-cache apache2 apache2-utils apache2-proxy bash curl git nodejs npm && \
     chmod +x /usr/local/bin/install-php-extensions && \
-    install-php-extensions gd pdo_mysql pdo_pgsql zip intl opcache mbstring bcmath
-
-# Enable pnpm via corepack
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Apache setup
-RUN mkdir -p /run/apache2 && \
+    install-php-extensions gd pdo_mysql pdo_pgsql zip intl opcache mbstring bcmath && \
+    npm install -g pnpm && \
+    mkdir -p /run/apache2 && \
     sed -i 's/#LoadModule\ proxy_module/LoadModule\ proxy_module/' /etc/apache2/httpd.conf && \
     sed -i 's/#LoadModule\ proxy_fcgi_module/LoadModule\ proxy_fcgi_module/' /etc/apache2/httpd.conf && \
     sed -i 's/#LoadModule\ rewrite_module/LoadModule\ rewrite_module/' /etc/apache2/httpd.conf
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
@@ -30,14 +26,7 @@ COPY frontend/ ./frontend/
 COPY README.md API_DOCUMENTATION.md DATABASE_README.md PROJECT.md DEVPLAN.md ./
 
 # Apache route to backend/public with PHP-FPM
-RUN echo 'ServerName localhost \n\
-DocumentRoot "/var/www/html/backend/public" \n\
-<Directory "/var/www/html/backend/public"> \n\
-    AllowOverride All \n\
-    Require all granted \n\
-</Directory> \n\
-ProxyPassMatch ^/(.*\.php(/.*)?)$ \
-    fcgi://127.0.0.1:9000/var/www/html/backend/public/$1' > /etc/apache2/conf.d/taipo.conf
+COPY docker/apache/all-in-one.conf /etc/apache2/conf.d/taipo.conf
 
 EXPOSE 80
 
