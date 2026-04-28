@@ -163,7 +163,7 @@
                                 :checked="selectedProject?.is_active == 1"
                                 @click="toggleActivity"
                                 type="checkbox"
-                                class="toggle toggle-xs toggle-primary"
+                                class="toggle toggle-xs toggle-success"
                             >
                         </label>
                     </div>
@@ -222,7 +222,7 @@
                                     :checked="selectedProject?.is_active == 1"
                                     @change="toggleActivity"
                                     type="checkbox"
-                                    class="toggle toggle-primary"
+                                    class="toggle toggle-success"
                                 >
                                 <span class="label-text font-bold">Product Owner Simulation (AI Comments/CRs)</span>
                             </label>
@@ -298,12 +298,16 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import ConfirmationModal from "./modals/ConfirmationModal.vue";
 import { api } from "../services/api";
 
 const props = defineProps({
     modelValue: Boolean,
+    activeProjectName: {
+        type: String,
+        default: ""
+    }
 });
 
 const emit = defineEmits([
@@ -320,6 +324,15 @@ const drawerOpen = computed({
 const projectName = ref("");
 const prompt = ref("");
 const selectedProject = ref(null); // stores object {id, name}
+
+watch(() => props.activeProjectName, (newVal) => {
+    if (newVal && (!selectedProject.value || selectedProject.value.name !== newVal)) {
+        const found = projects.value.find((p) => p.name === newVal);
+        if (found) {
+            selectedProject.value = found;
+        }
+    }
+});
 const projects = ref([]);
 const loading = ref(false); // for generation
 const loadingProjects = ref(false);
@@ -562,7 +575,10 @@ const fetchProjects = async () => {
 
         // Auto-select logic
         if (projects.value.length > 0) {
-            if (selectedProject.value) {
+            if (props.activeProjectName) {
+                const found = projects.value.find((p) => p.name === props.activeProjectName);
+                if (found) selectedProject.value = found;
+            } else if (selectedProject.value) {
                 // Re-link selected object reference if needed
                 const found = projects.value.find((p) => p.name === selectedProject.value.name);
                 if (found) selectedProject.value = found;

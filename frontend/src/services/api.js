@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// const API_BASE = '/TAIPO/api';
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '/TAIPO/api';
 
 // Create axios instance with base URL pointing to the proxy or direct backend
 const client = axios.create({
@@ -341,6 +340,12 @@ export const api = {
             id: projectId,
             team_id: teamId
         });
+        return response.data;
+    },
+
+    // Instructor Dashboard
+    async getDashboard() {
+        const response = await client.get('/?action=get_dashboard');
         return response.data;
     }
 };

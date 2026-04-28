@@ -144,6 +144,16 @@ TAIPO now acts as a proactive Product Owner by simulating background activity.
 
 ---
 
+### 13. 📊 Instructor Dashboard
+
+An instructor-only control panel accessible from the navbar. Provides a centralized view of:
+
+* **Configuration** — All `.env` settings grouped by category (Project, Gemini, PO Simulation, Users, GitHub, Database, Network). Sensitive values (API keys, tokens, passwords) are masked.
+* **TAWOS Dataset** — Statistics overview showing total records, issue type distribution, and source project names from the TAWOS agile dataset.
+* **Projects** — Full list of all projects with inline activity toggles to enable/disable the Autonomous PO Simulation per project.
+
+---
+
 ## 🛠 Troubleshooting
 
 ### Database Errors

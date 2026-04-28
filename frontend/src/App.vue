@@ -7,6 +7,7 @@
         <ProjectSidebar
             v-if="isAuthenticated"
             v-model="drawerOpen"
+            :active-project-name="currentProject"
             @project-selected="handleProjectSelected"
             @open-github-modal="showGithubModal = true"
         />
@@ -44,6 +45,22 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         API Costs
+                    </button>
+                </div>
+
+                <div
+                    v-if="authUser?.is_instructor"
+                    class="flex-none ml-2 hidden sm:flex"
+                >
+                    <button
+                        @click="isDashboardOpen = true"
+                        class="btn btn-outline btn-sm btn-accent gap-2"
+                        title="Instructor Dashboard"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                        </svg>
+                        Dashboard
                     </button>
                 </div>
 
@@ -210,6 +227,11 @@
             @close="isTeamModalOpen = false"
         />
 
+        <DashboardModal
+            :is-open="isDashboardOpen"
+            @close="isDashboardOpen = false"
+        />
+
         <!-- Global Toast Notification -->
         <div
             v-if="notification"
@@ -267,6 +289,7 @@ import ApiCostModal from './components/modals/ApiCostModal.vue';
 import RequirementModal from './components/RequirementModal.vue';
 import PrivacyModal from './components/modals/PrivacyModal.vue';
 import TeamModal from './components/modals/TeamModal.vue';
+import DashboardModal from './components/modals/DashboardModal.vue';
 import LoginView from './components/LoginView.vue';
 import CookieBanner from './components/CookieBanner.vue';
 import ConfirmationModal from './components/modals/ConfirmationModal.vue';
@@ -317,6 +340,7 @@ const isRequirementModalOpen = ref(false);
 const isApiCostModalOpen = ref(false);
 const isPrivacyModalOpen = ref(false);
 const isTeamModalOpen = ref(false);
+const isDashboardOpen = ref(false);
 
 // Decomposition Confirmation State
 const isDecomposeConfirmOpen = ref(false);
@@ -393,6 +417,7 @@ const handleGlobalEsc = (e) => {
         isApiCostModalOpen.value = false;
         isPrivacyModalOpen.value = false;
         isTeamModalOpen.value = false;
+        isDashboardOpen.value = false;
         isDecomposeConfirmOpen.value = false;
         drawerOpen.value = false;
     }

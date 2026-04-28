@@ -182,3 +182,20 @@ TAIPO ships a curated subset of the [TAWOS dataset](https://github.com/SOLAR-gro
 
 > [!NOTE]
 > TAWOS data is primarily used internally to enrich the Autonomous PO Simulation prompts with real-world agile feedback tone and change request patterns. The API endpoints above are provided for transparency and debugging.
+
+### 10. Instructor Dashboard
+
+**Action Parameter:** `action` (in GET)
+
+| Action          | Method | Required Fields | Auth Level | Description                                                                                           |
+| :-------------- | :----- | :-------------- | :--------- | :---------------------------------------------------------------------------------------------------- |
+| `get_dashboard` | GET    | None            | Instructor | Returns a system overview: grouped `.env` config (masked secrets), TAWOS stats, and project activity. |
+
+> [!IMPORTANT]
+> This endpoint requires the **Instructor** role. Non-instructor users will receive a **403 Forbidden** response.
+
+**Response Fields:**
+
+- `config`: Object — Environment variables grouped by category (Project, Gemini API, Gemini Costs, PO Simulation, Users, GitHub, Database, Network). API keys and tokens are masked with bullet characters showing only the last 4 characters. Database credentials (`DB_NAME`, `DB_USER`, `DB_PASS`) are fully masked.
+- `tawos`: Object — Dataset statistics including `total` record count, `types` breakdown array, and `projects` list.
+- `projects`: Array — All projects with `id`, `name`, `team_id`, `is_active`, and `created_at`.
