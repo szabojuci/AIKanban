@@ -193,7 +193,7 @@ class AuthController
     }
     public function handleGitHubLogin()
     {
-        // Közvetlenül a környezeti változóból fűzzük össze az URL-t, változók nélkül
+        // Directly combine URL with environment variable, without variables
         header("Location: https://github.com/login/oauth/authorize?client_id=" .
             ($_ENV['GITHUB_TOKEN'] ?? getenv('GITHUB_TOKEN')) .
             "&redirect_uri=http://localhost:8000/?action=github_callback&scope=repo,user");
@@ -202,14 +202,14 @@ class AuthController
 
     public function handleGitHubCallback()
     {
-        // 1. Kód kinyerése az URL-ből
+        // 1. Code extraction from URL
         $code = $_GET['code'] ?? null;
         if (!$code) {
             header("Location: http://localhost:5173/?error=no_code");
             exit;
         }
 
-        // 2. Token kérése a GitHub-tól (CURL-lel)
+        // 2. Token request from GitHub (with CURL)
         $ch = curl_init("https://github.com/login/oauth/access_token");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
@@ -218,7 +218,6 @@ class AuthController
             'code'          => $code,
         ]));
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
         $authData = json_decode(curl_exec($ch), true);
         $accessToken = $authData['access_token'] ?? null;
@@ -228,7 +227,7 @@ class AuthController
             exit;
         }
 
-        // 3. Felhasználói adatok lekérése a Token segítségével
+        // 3. Get user data with the Token
         curl_setopt($ch, CURLOPT_URL, "https://api.github.com/user");
         curl_setopt($ch, CURLOPT_POST, false);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -237,18 +236,17 @@ class AuthController
         ]);
 
         $userData = json_decode(curl_exec($ch), true);
-        curl_close($ch);
 
-        // 4. Beléptetés a Sessionbe, ha megvan a GitHub login név
+        // 4. Login into Session, if GitHub login name is available
         if (isset($userData['login'])) {
-            // Megakadályozzuk a session fixation támadást
+            // Prevent session fixation attack
             session_regenerate_id(true);
 
-            $_SESSION['user_id'] = 999; // Ideiglenes ID, amíg nincs DB-be mentve
+            $_SESSION['user_id'] = 999; // Temporary ID until saved to DB
             $_SESSION['username'] = $userData['login'];
             $_SESSION['is_instructor'] = false;
 
-            // 5. VISSZAIRÁNYÍTÁS A FRONTENDRE
+            // 5. REDIRECT TO FRONTEND
             header("Location: http://localhost:5173");
             exit;
         }

@@ -104,7 +104,6 @@
     </div>
 </template>
 
-
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { marked } from 'marked';
@@ -136,13 +135,13 @@ const commitToGithub = async () => {
         });
 
         if (response.data.success) {
-            alert('🚀 Siker! A kód feltöltve és a feladat DONE állapotba került.');
+            alert('🚀 Success! The code has been uploaded and the task has been moved to DONE.');
             emit('close');
         } else {
-            alert('❌ Hiba: ' + response.data.error);
+            alert('❌ Error: ' + response.data.error);
         }
     } catch (err) {
-        // ... hibakezelés marad ...
+        alert('❌ Error: ' + err.message);
     } finally {
         isCommitting.value = false;
     }

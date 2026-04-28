@@ -321,7 +321,6 @@ const isTeamModalOpen = ref(false);
 // Decomposition Confirmation State
 const isDecomposeConfirmOpen = ref(false);
 const taskToDecompose = ref(null);
-const currentTaskForCode = ref(null);
 
 // Global Notification State
 const notification = ref(null);

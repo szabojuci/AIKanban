@@ -58,13 +58,11 @@ class Application
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
         if (!empty($origin) && in_array($origin, $allowedOrigins)) {
-            // Allow if origin is in whitelist or if it's a same-origin request (often empty origin for standard navigation)
-            // But relying on empty origin for API calls from browsers is tricky, usually browsers send Origin.
-            // For now, let's just echo back the origin if it matches.
             header("Access-Control-Allow-Origin: $origin");
         }
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+        header("Access-Control-Allow-Credentials: true");
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             http_response_code(200);
@@ -100,7 +98,6 @@ class Application
         }
 
         // Router / Dispatcher Logic
-
         $action = $_POST['action'] ?? $_GET['action'] ?? null;
 
         // Existing actions delegating to Controllers
@@ -239,7 +236,6 @@ class Application
 
     private function enforceHttps(): void
     {
-        return;
         if (Config::isOffline()) {
             return;
         }
@@ -326,25 +322,25 @@ class Application
 
     private function initEnvAndInput(): void
     {
-    // Megpróbáljuk betölteni a .env fájlt a backend mappából
+        // Try to load .env from backend directory
         $envPath = realpath(__DIR__ . '/../');
 
         if (file_exists($envPath . '/.env')) {
             try {
-                $dotenv = \Dotenv\Dotenv::createImmutable($envPath);
+                $dotenv = Dotenv::createImmutable($envPath);
                 $dotenv->safeLoad();
-            } catch (\Exception $e) {
-                // Ha a Dotenv osztály nem elérhető, használjuk a saját Utils-t
-                \App\Utils::loadEnv($envPath . '/.env');
+            } catch (Exception $e) {
+                // If Dotenv class is not available, use our own Utils
+                Utils::loadEnv($envPath . '/.env');
             }
         } else {
-            // HA NINCS .ENV FÁJL, AKKOR MANUÁLISAN BEÁLLÍTJUK A KRITIKUS ÉRTÉKEKET:
+            // If .env file is not found, manually set critical values:
             $_ENV['ALLOWED_ORIGINS'] = 'http://localhost:5173';
             $_ENV['FORCE_HTTPS'] = 'false';
             putenv("FORCE_HTTPS=false");
         }
 
-        // JSON bemenet kezelése (Vite/Axios-hoz kell)
+        // JSON input handling (needed for Vite/Axios)
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) {
             $json = file_get_contents('php://input');
             $_POST = array_merge($_POST, json_decode($json, true) ?? []);
@@ -363,7 +359,7 @@ class Application
             $this->projectService = new ProjectService($pdo);
             $this->githubService = new GitHubService($_ENV['GITHUB_TOKEN'] ?? getenv('GITHUB_TOKEN'), $_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'), $_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO'));
 
-            $this->taskController = new TaskController($this->taskService, $this->taskAiService, $this->projectService, $this->githubService);
+            $this->taskController = new TaskController($this->taskService, $this->taskAiService, $this->projectService);
             $this->projectController = new ProjectController($this->projectService);
             $this->settingsController = new SettingsController(new SettingsService($pdo));
 
