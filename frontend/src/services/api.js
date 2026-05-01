@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// const API_BASE = '/TAIPO/api';
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '/TAIPO/api';
 
 // Create axios instance with base URL pointing to the proxy or direct backend
 const client = axios.create({
@@ -116,6 +115,24 @@ export const api = {
         return response.data;
     },
 
+    async commitToGithub(taskId, code, description) {
+        // Retrieves GitHub credentials from sessionStorage (set by GitHub login)
+        const token = sessionStorage.getItem('githubToken');
+        const username = sessionStorage.getItem('githubUsername');
+        const repo = sessionStorage.getItem('githubRepo');
+
+        const response = await client.post('/', {
+            action: 'commit_to_github',
+            task_id: taskId,
+            code: code,
+            description: description,
+            user_token: token,
+            user_username: username,
+            user_repo: repo
+        });
+        return response.data;
+    },
+
     async decomposeTask(taskId, description, currentProject) {
         const response = await client.post('/', {
             action: 'decompose_task',
@@ -164,6 +181,14 @@ export const api = {
         return client.post('/', {
             action: 'delete_project',
             id: id
+        });
+    },
+
+    async toggleProjectActivity(id, isActive) {
+        return client.post('/', {
+            action: 'toggle_project_activity',
+            id: id,
+            is_active: isActive
         });
     },
 
@@ -315,6 +340,12 @@ export const api = {
             id: projectId,
             team_id: teamId
         });
+        return response.data;
+    },
+
+    // Instructor Dashboard
+    async getDashboard() {
+        const response = await client.get('/?action=get_dashboard');
         return response.data;
     }
 };

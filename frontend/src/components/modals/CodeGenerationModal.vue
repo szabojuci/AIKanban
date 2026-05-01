@@ -59,7 +59,8 @@
                         <div
                             v-html="formattedCode"
                             class="bg-base-100 border border-base-300 rounded-2xl p-6 shadow-inner text-base-content selection:bg-primary/20"
-                        ></div>
+                        >
+                        </div>
                     </div>
                 </div>
             </div>
@@ -78,17 +79,14 @@
                 </button>
                 <div class="flex gap-2">
                     <button
-            v-if="code && !loading"
-            @click="commitToGithub"
-            :disabled="isCommitting"
-            class="btn btn-primary btn-sm gap-2 shadow-sm"
-        >
-            <span v-if="isCommitting" class="loading loading-spinner loading-xs"></span>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-            {{ isCommitting ? 'Committing...' : 'Commit to GitHub' }}
-        </button>
+                        v-if="code && !loading && canCommit"
+                        @click="$emit('commit')"
+                        class="btn btn-primary btn-sm gap-2 shadow-md hover:scale-105 transition-transform"
+                        title="Commit to GitHub (Moves task to DONE)"
+                    >
+                        <img src="../../images/github.svg" class="w-4 h-4 invert" alt="GitHub">
+                        Commit
+                    </button>
                     <button
                         @click="$emit('close')"
                         class="btn btn-ghost px-6 shadow-sm"
@@ -106,7 +104,6 @@
     </div>
 </template>
 
-
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { marked } from 'marked';
@@ -120,7 +117,7 @@ const props = defineProps({
     task: Object,
 });
 
-const emit = defineEmits(['close', 'regenerate']);
+const emit = defineEmits(['close', 'regenerate', 'commit']);
 
 const isCommitting = ref(false);
 
@@ -138,13 +135,13 @@ const commitToGithub = async () => {
         });
 
         if (response.data.success) {
-            alert('🚀 Siker! A kód feltöltve és a feladat DONE állapotba került.');
+            alert('🚀 Success! The code has been uploaded and the task has been moved to DONE.');
             emit('close');
         } else {
-            alert('❌ Hiba: ' + response.data.error);
+            alert('❌ Error: ' + response.data.error);
         }
     } catch (err) {
-        // ... hibakezelés marad ...
+        alert('❌ Error: ' + err.message);
     } finally {
         isCommitting.value = false;
     }
@@ -153,6 +150,12 @@ const commitToGithub = async () => {
 const formattedCode = computed(() => {
     if (!props.code) return '';
     return marked.parse(props.code);
+});
+
+const canCommit = computed(() => {
+    if (!props.task) return false;
+    // Commits are only allowed from REVIEW column per JIRA-style process
+    return props.task.status?.toUpperCase().includes('REVIEW');
 });
 
 const copyTooltip = ref('Copy Code');

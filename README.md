@@ -1,12 +1,14 @@
-# 🤖 AI-Driven Kanban Board
+# 🤖 TAIPO: AI-Driven Kanban Board
 
-An intelligent, web-based **Agile Project Management Tool** that integrates **Generative AI** with modern DevOps workflows. This system not only visualizes tasks but also automates project planning and source code generation, with direct deployment to GitHub.
+An intelligent, web-based **Agile Project Management Tool** that integrates **Generative AI** with modern DevOps workflows. TAIPO simulates a **Product Owner** by automatically generating user stories, providing sprint feedback, and introducing requirement changes — all powered by the Google Gemini API.
 
 ---
 
 ## 🌟 Overview
 
-The **AI-Driven Kanban Board** is designed to enhance software development efficiency. By leveraging the **Google Gemini API**, it can brainstorm entire project backlogs and write Java code for specific tasks. It enforces Agile discipline through **Work In Progress (WIP) limits** and streamlines the version control process via **GitHub API** integration.
+**TAIPO** (Teaching AI Product Owner) is designed to enhance software development education and efficiency. By leveraging the **Google Gemini API**, it can brainstorm entire project backlogs, decompose user stories into tasks, generate source code, and simulate realistic PO behavior through autonomous comments and change requests. It enforces Agile discipline through **Work In Progress (WIP) limits** and streamlines the version control process via **GitHub API** integration.
+
+For empirical evaluation, see the [Use Case Study](USE_CASE_STUDY.md).
 
 ---
 
@@ -16,17 +18,17 @@ For detailed API usage, please refer to the [Developer API Documentation](API_DO
 
 ### 1. Prepare Environment
 
-* **Web Server:** on Windows, install [WAMP](https://www.wampserver.com/).
+* **Web Server:** For Windows environments, we recommend utilizing WAMP Server [3].
 * **Project Files:** Place the project folder into your server's public directory (e.g., `C:\wamp64\www\[project_name]`).
-  * why WAMP? because it's free and easy to use, and it's the only one I know of that works on Windows with PHP 8.5 at the time of writing (2026-02-05).
-  * for updates visit [WAMP aviatechno](https://wampserver.aviatechno.net/) website.
+  * WAMP is recommended for its ease of use and compatibility with PHP 8.5 in Windows environments.
+  * For the latest updates, consult the WAMP aviatechno resource [4].
 
 ### 2. Obtain API Keys
 
-* **Google Gemini API:** Visit [Google AI Studio](https://aistudio.google.com/) and click **"Get API Key"**.
-  * to see which models are available, visit [Gemini API Models](https://ai.google.dev/gemini-api/docs/models)
-* **GitHub Personal Access Token (PAT):** - Go to your GitHub **Settings** > **Developer Settings** > **Personal Access Tokens** > **Tokens (classic)**.
-  * Generate a new token with the `repo` scope enabled.
+* **Google Gemini API:** Access the Google AI Studio [5] and retrieve your API key.
+  * A full list of supported models is available in the Gemini API documentation [6].
+* **GitHub Personal Access Token (PAT):** Navigate to your GitHub Settings > Developer Settings > Personal Access Tokens > Tokens (classic).
+  * Generate a token with the `repo` scope enabled [3].
 
 ### 3. Configuration
 
@@ -100,7 +102,7 @@ When you are ready to implement a feature:
 2. Select **"Generate Code"**.  
 
 **AI Logic:**  
-The system sends the task description to **Gemini**, which returns a functional **Java code snippet**.
+The system sends the task description to **Gemini**, which returns a functional **source code snippet** (supporting Python, PHP, Rust, Java, TypeScript, and more).
 
 ---
 
@@ -109,25 +111,46 @@ The system sends the task description to **Gemini**, which returns a functional 
 The final step is integrating your code into your repository:
 
 1. In the code preview window, click the **GitHub icon**.  
-2. The app sends a **PUT request** to the GitHub API.  
+2. The app sends a **POST request** to the backend, which then pushes the code to GitHub via a **PUT request**.  
 
 **Success:**  
-The code is saved as a new `.java` file in your repository.
+The code is saved as a new source file (e.g., `.py`, `.php`, `.rs`, `.java`, `.ts`) in your repository.
 
 **Automation:**  
 Once the commit is successful, the app automatically moves the task to the **DONE** column.
 
 ---
 
-### 11. 🌙 UI / UX Features
+### 11. 🤖 Autonomous PO Simulator (Simulation Engine)
+
+TAIPO now acts as a proactive Product Owner by simulating background activity.
+
+* **Check-in Comments**: Every **2 hours** (during working hours), TAIPO will pick a task and add a professional, Jira-style comment asking for progress or offering guidance.
+* **Change Requests**: Approximately every **3 days**, TAIPO will generate a realistic, unforeseen **Change Request** and add it to the *Sprint Backlog* to simulate project dynamics.
+* **Working Hours**: The simulation is active between **8:00 AM and 4:00 PM** (Mon-Fri) to reflect a standard industrial environment.
+* **TAWOS Data Grounding**: The simulation is enriched with real-world agile patterns from the [TAWOS dataset](https://github.com/SOLAR-group/TAWOS) (Tawosi et al., MSR 2022). A curated subset of 458K+ Jira issues is used to calibrate comment tone and change request realism. See [LICENCE.md](LICENCE.md) for full attribution.
+
+---
+
+### 12. 🌙 UI / UX Features
 
 * **Dark Mode** – Toggle between themes using the **Moon/Sun (🌙 / ☀️)** icon  
-* **Importance Tagging** – Click the proper **Star (![Empty](assets/star-empty.svg))** to mark the priority of a task  
+* **Importance Tagging** – Click the proper **Star (![Empty](assets/star-empty.svg))** to mark the priority of a task
   * **(![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg))** NO priority
   * **(![Low](assets/star-yellow.svg)![Empty](assets/star-empty.svg)![Empty](assets/star-empty.svg))** LOW priority
   * **(![Low](assets/star-yellow.svg)![Medium](assets/star-orange.svg)![Empty](assets/star-empty.svg))** MEDIUM priority
   * **(![Low](assets/star-yellow.svg)![Medium](assets/star-orange.svg)![High](assets/star-red.svg))** HIGH priority
-* **Inline Editing** – Modify task descriptions directly on the board by selecting **"Edit"** from the task menu  
+* **Inline Editing** – Modify task descriptions directly on the board by selecting **"Edit"** from the task menu
+
+---
+
+### 13. 📊 Instructor Dashboard
+
+An instructor-only control panel accessible from the navbar. Provides a centralized view of:
+
+* **Configuration** — All `.env` settings grouped by category (Project, Gemini, PO Simulation, Users, GitHub, Database, Network). Sensitive values (API keys, tokens, passwords) are masked.
+* **TAWOS Dataset** — Statistics overview showing total records, issue type distribution, and source project names from the TAWOS agile dataset.
+* **Projects** — Full list of all projects with inline activity toggles to enable/disable the Autonomous PO Simulation per project.
 
 ---
 
@@ -135,8 +158,13 @@ Once the commit is successful, the app automatically moves the task to the **DON
 
 ### Database Errors
 
-The app creates `kanban.sqlite` automatically.  
-Make sure the folder has **write permissions**.
+The app creates a SQLite database automatically if no other database is configured.
+
+* **Non-Docker:** `kanban.sqlite`  
+* **Docker Prod:** `data/kanban.sqlite`  
+* **Docker Dev:** `data/kanban.sqlite`  
+
+Make sure the data folder has **write permissions**.
 
 ### GitHub 403 Forbidden
 
@@ -148,9 +176,152 @@ If the AI does not return tasks in the correct format, try refreshing the prompt
 
 ---
 
+## 🐳 Docker Deployment
+
+TAIPO features a **modern, dual-stack Docker infrastructure** that supports multiple web servers and database engines.
+
+### Quick Start
+
+1. **Nginx + SQLite + PHP 8.5 (Alpine):**
+
+    ```bash
+    docker compose -f docker-compose.nginx-sqlite.prod.yml up -d --build
+    ```
+
+2. **Apache + MariaDB + PHP 8.5 (Alpine):**
+
+    ```bash
+    docker compose -f docker-compose.apache-mariadb.prod.yml up -d --build
+    ```
+
+3. **All-in-one stack (Apache + Nginx + MariaDB + PostgreSQL + MySQL + SQLite support):**
+
+    ```bash
+    docker compose --profile all up -d --build
+    ```
+
+4. **All-in-One + PHP 8.5 (Alpine) [PROD]:**
+
+    ```bash
+    docker compose -f docker-compose.all-in-one.prod.yml up -d --build
+    ```
+
+5. **All-in-One + PHP 8.5 [DEV]:**
+
+    ```bash
+    docker compose -f docker-compose.all-in-one.dev.yml up --build
+    ```
+
+6. **Access:** `http://localhost:8080/TAIPO/` (Apache), `http://localhost:8081/TAIPO/` (Nginx), `http://localhost:8082/TAIPO/` (All-in-One)
+
+### 🛠️ Advanced Multi-Stack
+
+You can switch between **Nginx/Apache** and **MariaDB/Postgres/MySQL** using Docker Profiles:
+
+Note: the MariaDB service uses the stable `mariadb:11.4` image tag.
+
+```bash
+# Example: Nginx + PostgreSQL
+DB_TYPE=pgsql DB_HOST=postgres SQLITE_FILE_NAME=None docker compose --profile nginx --profile postgres up -d --build
+```
+
+For detailed instructions on multi-stack configuration and persistence, see the **[Docker Documentation](DOCKER_README.md)**.
+
+### 🔐 Docker API Keys / Tokens
+
+When running in Docker, set API keys through an env file and pass it with `--env-file`:
+
+```bash
+# Create a dedicated env file in project root
+cat > .env.docker <<'EOF'
+GEMINI_API_KEY=your_real_gemini_api_key
+GITHUB_USERNAME=your_github_username
+GITHUB_REPO=your_repo_name
+GITHUB_TOKEN=your_github_token
+EOF
+
+# Recreate stack with env values
+docker compose --env-file .env.docker -f docker-compose.nginx-sqlite.prod.yml up -d --force-recreate
+
+# Or all-in-one prod
+docker compose --env-file .env.docker -f docker-compose.all-in-one.prod.yml up -d --force-recreate
+```
+
+### 🧑‍💻 Dev Presets
+
+**Nginx + SQLite Dev (includes frontend source + pnpm install + DEVPLAN + backend tests/tools/xml  configs):**
+
+```bash
+docker compose -f docker-compose.nginx-sqlite.dev.yml up --build
+```
+
+**Apache + MariaDB Dev (includes frontend source + pnpm install + DEVPLAN + backend tests/tools/xml configs):**
+
+```bash
+docker compose -f docker-compose.apache-mariadb.dev.yml up --build
+```
+
+### Stopping
+
+```bash
+docker compose down
+```
+
+Data is persisted in a Docker volume (`taipo-data`).
+
+---
+
+## 🧪 Testing
+
+TAIPO includes both backend and frontend test suites.
+
+### Backend (PHPUnit)
+
+```bash
+cd backend
+composer install
+vendor/bin/phpunit
+```
+
+Tests cover: Config, Database schema, TaskService, ProjectService, GeminiService, and PoActivityService.
+
+### Frontend (Vitest)
+
+```bash
+cd frontend
+pnpm install
+pnpm test
+```
+
+Tests cover: API service payloads, App.vue authentication flow, KanbanBoard rendering, and TaskCard interactions.
+
+---
+
 ## 📝 Academic Background
 
 * **Author:** Judit Szabó *(Software Engineering Student)*  
 * **Contributor:** Mihaly Nyilas *(Software Engineering Student)*  
 * **Supervisor:** Dr. Gábor Kusper  
 * **Institution:** Eszterházy Károly Catholic University  
+
+## 📚 Additional Documentation
+
+* [API Documentation](API_DOCUMENTATION.md)
+* [Database Schema](DATABASE_README.md)
+* [Docker Environment](DOCKER_README.md)
+* [Project Structure](PROJECT.md)
+* [Development Roadmap](DEVPLAN.md)
+* [Use Case Study](USE_CASE_STUDY.md)
+* [Licences & Attributions](LICENCE.md)
+
+## 7. References
+
+[1] TAIPO Source Code (Modernized). GitHub: `https://github.com/dabzse/TAIPO`.  
+[2] AI-Kanban Original Repository. GitHub: `https://github.com/szabojuci/AIKanban`.  
+[3] GitHub Developer Documentation - Personal Access Tokens. `https://docs.github.com/en/authentication`.  
+[4] WAMP Server Official Site. `https://www.wampserver.com/`.  
+[5] WAMP aviatechno (Update Resource). `https://wampserver.aviatechno.net/`.  
+[6] Google AI Studio. `https://aistudio.google.com/`.  
+[7] Google Gemini API Models. `https://ai.google.dev/gemini-api/docs/models`.  
+[8] TAIPO Official Docker Image. `docker.io/dabzse/taipo:latest`.  
+[9] TAWOS Dataset (Tawosi et al., MSR 2022). GitHub: `https://github.com/SOLAR-group/TAWOS`. DOI: `10.5522/04/21308124`.  

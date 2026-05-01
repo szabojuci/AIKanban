@@ -40,3 +40,133 @@
     .fade-in { animation-name: fade-in; }
     .zoom-in { animation-name: zoom-in; }
 }
+
+/** ===================================================================
+    Cupcake (Light Theme) — Contrast & Readability Fixes
+    DaisyUI cupcake theme uses soft pastels that can produce low-contrast
+    text. These overrides ensure WCAG AA compliance for key elements.
+    ===================================================================
+*/
+
+[data-theme="cupcake"] {
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #b0aeb5;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #8e8c93;
+    }
+
+    .badge-primary {
+        color: #fff;
+    }
+    .badge-info {
+        color: #fff;
+    }
+    .badge-warning {
+        color: #1f1300;
+    }
+    .badge-accent {
+        color: #fff;
+    }
+    .badge-success {
+        color: #fff;
+    }
+    .badge-neutral {
+        color: #fff;
+    }
+    .badge-ghost {
+        border-color: rgba(0, 0, 0, 0.15);
+    }
+
+    .input-bordered,
+    .textarea-bordered,
+    .select-bordered,
+    .file-input-bordered {
+        border-color: rgba(0, 0, 0, 0.2);
+    }
+    .input-bordered:focus,
+    .textarea-bordered:focus,
+    .select-bordered:focus {
+        border-color: hsl(var(--p));
+        outline-color: hsl(var(--p));
+    }
+
+    .card {
+        border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .shadow-xl {
+        box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.08),
+            0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .navbar {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .drawer-side .menu {
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .btn-outline {
+        border-color: rgba(0, 0, 0, 0.2);
+    }
+    .btn-outline:hover {
+        border-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .alert-error {
+        color: #7f1d1d;
+    }
+    .alert-info {
+        color: #1e3a5f;
+    }
+    .alert-warning {
+        color: #78350f;
+    }
+    .alert-success {
+        color: #14532d;
+    }
+    .dropdown-content.menu {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .divider::before,
+    .divider::after {
+        background-color: rgba(0, 0, 0, 0.12);
+    }
+    .modal-backdrop,
+    .drawer-overlay {
+        background-color: rgba(0, 0, 0, 0.35);
+    }
+    .modal-box {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .border-l-4 {
+        border-left-width: 5px;
+    }
+
+    .bg-info.text-info-content,
+    .bg-primary.text-primary-content,
+    .bg-warning.text-warning-content,
+    .bg-success.text-success-content,
+    .bg-error.text-error-content,
+    .bg-neutral.text-neutral-content {
+        font-weight: 700;
+        text-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+        color: rgba(0, 0, 0, 0.35);
+    }
+    .label-text {
+        color: rgba(0, 0, 0, 0.7);
+    }
+    .label-text-alt {
+        color: rgba(0, 0, 0, 0.55);
+    }
+    .link-hover:hover {
+        text-decoration-thickness: 2px;
+    }
+}

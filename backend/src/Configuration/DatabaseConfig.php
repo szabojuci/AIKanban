@@ -43,6 +43,11 @@ class DatabaseConfig
                     user_id INTEGER DEFAULT NULL,
                     team_id INTEGER DEFAULT NULL,
                     is_archived INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    last_comment_at DATETIME DEFAULT NULL,
+                    next_comment_at DATETIME DEFAULT NULL,
+                    last_cr_at DATETIME DEFAULT NULL,
+                    next_cr_at DATETIME DEFAULT NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE RESTRICT
                 )",
@@ -88,6 +93,20 @@ class DatabaseConfig
                     FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE RESTRICT,
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE RESTRICT,
                     FOREIGN KEY(role_id) REFERENCES roles(id) ON DELETE RESTRICT
+                )",
+                'tawos_issues' => "CREATE TABLE IF NOT EXISTS tawos_issues (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    issue_key VARCHAR(64),
+                    title VARCHAR(512),
+                    description_text TEXT,
+                    type VARCHAR(64),
+                    priority VARCHAR(64),
+                    status VARCHAR(64),
+                    resolution VARCHAR(64),
+                    story_point REAL DEFAULT NULL,
+                    comment_text TEXT DEFAULT NULL,
+                    project_name VARCHAR(256),
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )"
             ]
         ];

@@ -2,60 +2,70 @@
 
 namespace App;
 
-use App\Service\TaskService;
-use App\Service\ProjectService;
-use App\Service\GitHubService;
-use App\Service\ApplicationService;
-use App\Service\GeminiService;
+use App\Config;
+use App\Database;
+use App\Utils;
+use Dotenv\Dotenv;
+use Exception;
+
 use App\Configuration\GeminiConfig;
-use App\Controller\TaskController;
-use App\Controller\ProjectController;
-use App\Controller\SettingsController;
-use App\Controller\RequirementController;
+
 use App\Controller\AuthController;
+use App\Controller\ProjectController;
+use App\Controller\RequirementController;
+use App\Controller\SettingsController;
+use App\Controller\TaskController;
 use App\Controller\TeamController;
-use App\Service\SettingsService;
-use App\Service\RequirementService;
-use App\Service\TeamService;
-use App\Service\TaskAiService;
+
 use App\Exception\GeminiApiException;
 use App\Exception\ProjectAlreadyExistsException;
-use App\Utils;
-use App\Config;
-use Exception;
-use App\Database;
-use Dotenv\Dotenv;
+
+use App\Service\ApplicationService;
+use App\Service\GeminiService;
+use App\Service\GitHubService;
+use App\Service\PoActivityService;
+use App\Service\ProjectService;
+use App\Service\RequirementService;
+use App\Service\SettingsService;
+use App\Service\TaskAiService;
+use App\Service\TaskService;
+use App\Service\TawosService;
+use App\Service\TeamService;
+
 
 class Application
 {
-    private TaskService $taskService;
-    private ProjectService $projectService;
-    private GitHubService $githubService;
+    private AuthController $authController;
     private GeminiService $geminiService;
+    private GitHubService $githubService;
+    private PoActivityService $poActivityService;
+    private ProjectController $projectController;
+    private ProjectService $projectService;
+    private RequirementController $requirementController;
+    private RequirementService $requirementService;
+    private SettingsController $settingsController;
     private TaskAiService $taskAiService;
     private TaskController $taskController;
-    private ProjectController $projectController;
-    private SettingsController $settingsController;
-    private RequirementService $requirementService;
-    private RequirementController $requirementController;
-    private AuthController $authController;
+    private TaskService $taskService;
+    private TawosService $tawosService;
     private TeamController $teamController;
     private TeamService $teamService;
 
     public function run()
     {
+        // Load environment variables and parse JSON input first
+        $this->initEnvAndInput();
+
         // Allow CORS with safety checks
         $allowedOrigins = explode(',', $_ENV['ALLOWED_ORIGINS'] ?? getenv('ALLOWED_ORIGINS') ?: '');
         $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
         if (!empty($origin) && in_array($origin, $allowedOrigins)) {
-            // Allow if origin is in whitelist or if it's a same-origin request (often empty origin for standard navigation)
-            // But relying on empty origin for API calls from browsers is tricky, usually browsers send Origin.
-            // For now, let's just echo back the origin if it matches.
             header("Access-Control-Allow-Origin: $origin");
         }
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+        header("Access-Control-Allow-Credentials: true");
 
         if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
             http_response_code(200);
@@ -73,20 +83,23 @@ class Application
         ]);
         session_start();
 
-        $this->initEnvAndInput();
         $this->enforceHttps();
 
 
         $error = $this->initServices();
 
         if ($error) {
-            // If DB connection fails, we can't do much but show error
-            echo "Critical Error: " . $error;
+            // If DB connection fails, we can't do much but show error via JSON
+            header(Config::APP_JSON, true, 500);
+            echo json_encode([
+                'success' => false,
+                'authenticated' => false,
+                'error' => "Critical Error: " . $error
+            ]);
             exit;
         }
 
         // Router / Dispatcher Logic
-
         $action = $_POST['action'] ?? $_GET['action'] ?? null;
 
         // Existing actions delegating to Controllers
@@ -135,7 +148,7 @@ class Application
         // Protected Actions - Project Actions
         $projectActions = [
             'create_project', 'list_projects', 'update_project', 'delete_project',
-            'get_project_defaults', 'set_project_team',
+            'get_project_defaults', 'set_project_team', 'toggle_project_activity',
             'list_user_teams'
         ];
         if (in_array($action, $projectActions)) {
@@ -199,11 +212,151 @@ class Application
             default:
                 break;
         }
+
+        // TAWOS Dataset Actions
+        if (in_array($action, ['get_tawos_stats', 'get_tawos_sample'])) {
+            $this->handleTawosAction($action);
+            exit;
+        }
+
+        // Instructor-Only Actions
+        if ($action === 'get_dashboard') {
+            if (!($_SESSION['is_instructor'] ?? false)) {
+                header(Config::APP_JSON, true, 403);
+                echo json_encode(['success' => false, 'error' => 'Forbidden. Instructor role required.']);
+                exit;
+            }
+            $this->handleDashboard();
+            exit;
+        }
+    }
+
+    private function handleTawosAction(string $action): void
+    {
+        header(Config::APP_JSON);
+        try {
+            if ($action === 'get_tawos_stats') {
+                echo json_encode(['success' => true, 'data' => $this->tawosService->getStats()]);
+            } elseif ($action === 'get_tawos_sample') {
+                $limit = (int)($_GET['limit'] ?? 5);
+                echo json_encode(['success' => true, 'data' => $this->tawosService->getSample(min($limit, 20))]);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    private function handleDashboard(): void
+    {
+        header(Config::APP_JSON);
+        try {
+            // Sensitive keys that show only last 4 chars
+            $sensitiveKeys = [
+                'GEMINI_API_KEY', 'GITHUB_TOKEN', 'GITHUB_CLIENT_SECRET'
+            ];
+
+            // Database credentials that are fully masked
+            $fullyHiddenKeys = [
+                'DB_NAME', 'DB_USER', 'DB_PASS'
+            ];
+
+            // Collect all relevant env vars grouped by category
+            $config = [
+                'Project' => [
+                    'PROJECT_NAME' => $_ENV['PROJECT_NAME'] ?? '',
+                    'MAX_TITLE_LENGTH' => $_ENV['MAX_TITLE_LENGTH'] ?? '42',
+                    'MAX_DESCRIPTION_LENGTH' => $_ENV['MAX_DESCRIPTION_LENGTH'] ?? '512',
+                    'MAX_QUERY_LENGTH' => $_ENV['MAX_QUERY_LENGTH'] ?? '1320',
+                ],
+                'Gemini API' => [
+                    'GEMINI_API_KEY' => $_ENV['GEMINI_API_KEY'] ?? '',
+                    'GEMINI_BASE_MODEL' => $_ENV['GEMINI_BASE_MODEL'] ?? '',
+                    'GEMINI_FALLBACK_MODEL' => $_ENV['GEMINI_FALLBACK_MODEL'] ?? '',
+                    'GEMINI_BASE_URL' => $_ENV['GEMINI_BASE_URL'] ?? '',
+                    'GEMINI_FALLBACK_URL' => $_ENV['GEMINI_FALLBACK_URL'] ?? '',
+                    'GEMINI_TEMPERATURE' => $_ENV['GEMINI_TEMPERATURE'] ?? '0.7',
+                    'GEMINI_TOP_K' => $_ENV['GEMINI_TOP_K'] ?? '40',
+                    'GEMINI_TOP_P' => $_ENV['GEMINI_TOP_P'] ?? '0.95',
+                    'GEMINI_MAX_OUTPUT_TOKENS' => $_ENV['GEMINI_MAX_OUTPUT_TOKENS'] ?? '4096',
+                ],
+                'Gemini Costs' => [
+                    'GEMINI_BASE_MODEL_PROMPT_COST_PER_MILLION' => $_ENV['GEMINI_BASE_MODEL_PROMPT_COST_PER_MILLION'] ?? '',
+                    'GEMINI_BASE_MODEL_CANDIDATE_COST_PER_MILLION' => $_ENV['GEMINI_BASE_MODEL_CANDIDATE_COST_PER_MILLION'] ?? '',
+                    'GEMINI_FALLBACK_MODEL_PROMPT_COST_PER_MILLION' => $_ENV['GEMINI_FALLBACK_MODEL_PROMPT_COST_PER_MILLION'] ?? '',
+                    'GEMINI_FALLBACK_MODEL_CANDIDATE_COST_PER_MILLION' => $_ENV['GEMINI_FALLBACK_MODEL_CANDIDATE_COST_PER_MILLION'] ?? '',
+                ],
+                'PO Simulation' => [
+                    'SIM_TIMEZONE' => $_ENV['SIM_TIMEZONE'] ?? 'UTC',
+                    'SIM_MIN_ACTIVE_HOUR' => $_ENV['SIM_MIN_ACTIVE_HOUR'] ?? '8',
+                    'SIM_MAX_ACTIVE_HOUR' => $_ENV['SIM_MAX_ACTIVE_HOUR'] ?? '16',
+                    'SIM_MIN_FEEDBACK_SEC' => $_ENV['SIM_MIN_FEEDBACK_SEC'] ?? '7200',
+                    'SIM_MAX_FEEDBACK_SEC' => $_ENV['SIM_MAX_FEEDBACK_SEC'] ?? '10800',
+                    'SIM_MIN_CR_SEC' => $_ENV['SIM_MIN_CR_SEC'] ?? '86400',
+                    'SIM_MAX_CR_SEC' => $_ENV['SIM_MAX_CR_SEC'] ?? '259200',
+                ],
+                'Users' => [
+                    'MIN_USERNAME_LENGTH' => $_ENV['MIN_USERNAME_LENGTH'] ?? '6',
+                    'MIN_PASSWORD_LENGTH' => $_ENV['MIN_PASSWORD_LENGTH'] ?? '8',
+                    'REGISTRATION_ENABLED' => $_ENV['REGISTRATION_ENABLED'] ?? 'true',
+                ],
+                'GitHub' => [
+                    'GITHUB_USERNAME' => $_ENV['GITHUB_USERNAME'] ?? '',
+                    'GITHUB_REPO' => $_ENV['GITHUB_REPO'] ?? '',
+                    'GITHUB_TOKEN' => $_ENV['GITHUB_TOKEN'] ?? '',
+                    'GITHUB_USERAGENT' => $_ENV['GITHUB_USERAGENT'] ?? '',
+                ],
+                'Database' => [
+                    'DB_TYPE' => $_ENV['DB_TYPE'] ?? 'sqlite',
+                    'SQLITE_FILE_NAME' => $_ENV['SQLITE_FILE_NAME'] ?? '',
+                    'DB_HOST' => $_ENV['DB_HOST'] ?? '',
+                    'DB_NAME' => $_ENV['DB_NAME'] ?? '',
+                    'DB_USER' => $_ENV['DB_USER'] ?? '',
+                    'DB_PASS' => $_ENV['DB_PASS'] ?? '',
+                    'TABLE_PREFIX' => $_ENV['TABLE_PREFIX'] ?? '',
+                ],
+                'Network' => [
+                    'ALLOWED_ORIGINS' => $_ENV['ALLOWED_ORIGINS'] ?? '',
+                    'SESSION_COOKIE_SECURE_FLAG' => $_ENV['FORCE_HTTPS'] ?? 'false',
+                    'ENFORCE_HTTPS_REDIRECT' => Config::isOffline() ? 'false' : 'true',
+                ],
+            ];
+
+            // Mask sensitive values
+            foreach ($config as $group => &$items) {
+                foreach ($items as $key => &$value) {
+                    if (in_array($key, $fullyHiddenKeys)) {
+                        if (!empty($value)) {
+                            $value = '••••••••';
+                        }
+                    } elseif (in_array($key, $sensitiveKeys) && strlen($value) > 4) {
+                        $value = str_repeat('•', min(strlen($value) - 4, 20)) . substr($value, -4);
+                    }
+                }
+            }
+            unset($items, $value);
+
+            // Collect TAWOS stats
+            $tawos = $this->tawosService->getStats();
+
+            // Collect project list with activity status
+            $userId = $_SESSION['user_id'] ?? 0;
+            $projects = $this->projectService->getAllProjects($userId, true);
+
+            echo json_encode([
+                'success' => true,
+                'config' => $config,
+                'tawos' => $tawos,
+                'projects' => $projects,
+            ]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
     }
 
     private function enforceHttps(): void
     {
-        return;
         if (Config::isOffline()) {
             return;
         }
@@ -260,6 +413,7 @@ class Application
         $kanbanTasks = [];
         // Only load tasks if authenticated
         if (isset($_SESSION['user_id'])) {
+            $this->poActivityService->tick($currentProjectName, (int)$_SESSION['user_id']);
             $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
         }
 
@@ -289,25 +443,25 @@ class Application
 
     private function initEnvAndInput(): void
     {
-    // Megpróbáljuk betölteni a .env fájlt a backend mappából
+        // Try to load .env from backend directory
         $envPath = realpath(__DIR__ . '/../');
 
         if (file_exists($envPath . '/.env')) {
             try {
-                $dotenv = \Dotenv\Dotenv::createImmutable($envPath);
+                $dotenv = Dotenv::createImmutable($envPath);
                 $dotenv->safeLoad();
-            } catch (\Exception $e) {
-                // Ha a Dotenv osztály nem elérhető, használjuk a saját Utils-t
-                \App\Utils::loadEnv($envPath . '/.env');
+            } catch (Exception $e) {
+                // If Dotenv class is not available, use our own Utils
+                Utils::loadEnv($envPath . '/.env');
             }
         } else {
-            // HA NINCS .ENV FÁJL, AKKOR MANUÁLISAN BEÁLLÍTJUK A KRITIKUS ÉRTÉKEKET:
+            // If .env file is not found, manually set critical values:
             $_ENV['ALLOWED_ORIGINS'] = 'http://localhost:5173';
             $_ENV['FORCE_HTTPS'] = 'false';
             putenv("FORCE_HTTPS=false");
         }
 
-        // JSON bemenet kezelése (Vite/Axios-hoz kell)
+        // JSON input handling (needed for Vite/Axios)
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json')) {
             $json = file_get_contents('php://input');
             $_POST = array_merge($_POST, json_decode($json, true) ?? []);
@@ -326,7 +480,7 @@ class Application
             $this->projectService = new ProjectService($pdo);
             $this->githubService = new GitHubService($_ENV['GITHUB_TOKEN'] ?? getenv('GITHUB_TOKEN'), $_ENV['GITHUB_USERNAME'] ?? getenv('GITHUB_USERNAME'), $_ENV['GITHUB_REPO'] ?? getenv('GITHUB_REPO'));
 
-            $this->taskController = new TaskController($this->taskService, $this->taskAiService, $this->projectService, $this->githubService);
+            $this->taskController = new TaskController($this->taskService, $this->taskAiService, $this->projectService);
             $this->projectController = new ProjectController($this->projectService);
             $this->settingsController = new SettingsController(new SettingsService($pdo));
 
@@ -335,6 +489,11 @@ class Application
             $this->authController = new AuthController($pdo);
             $this->teamService = new TeamService($pdo);
             $this->teamController = new TeamController($this->teamService);
+
+            $this->tawosService = new TawosService($pdo, $database->getDbType());
+            $this->tawosService->autoSeed();
+
+            $this->poActivityService = new PoActivityService($pdo, $this->geminiService, $database->getDbType(), $this->tawosService);
         } catch (Exception $e) {
             $error = $e->getMessage();
         }
@@ -470,7 +629,10 @@ class Application
                 break;
             case 'get_project_defaults':
                 $this->projectController->handleGetDefaults();
-                exit;
+                exit;break;
+            case 'toggle_project_activity':
+                $this->projectController->handleToggleActivity();
+                exit;break;
             case 'set_project_team':
                 $id = (int)($_POST['id'] ?? 0);
                 $teamId = (int)($_POST['team_id'] ?? 0) ?: null;
