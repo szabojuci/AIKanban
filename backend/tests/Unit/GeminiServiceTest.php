@@ -29,26 +29,19 @@ class GeminiServiceTest extends TestCase
     public function testConstructorThrowsOnMissingApiKey(): void
     {
         $_ENV['GEMINI_API_KEY'] = '';
-        try {
-            $service = new GeminiService(null);
-            $this->assertNotNull($service);
-            $this->fail('Expected GeminiApiException was not thrown');
-        } catch (GeminiApiException $e) {
-            $this->assertStringContainsString('API key is not set or invalid', $e->getMessage());
-        }
+        $service = new GeminiService(null);
+        $this->expectException(GeminiApiException::class);
+        $this->expectExceptionMessage('API key is not set or invalid');
+        $service->askTaipo('hello');
     }
 
     public function testConstructorThrowsOnInvalidApiKeyFormat(): void
     {
         $_ENV['GEMINI_API_KEY'] = 'INVALID_KEY_FORMAT';
-        try {
-            $service = new GeminiService(null);
-            $this->assertNotNull($service);
-            $this->fail('Expected GeminiApiException was not thrown');
-        } catch (GeminiApiException $e) {
-            // Success
-            $this->assertTrue(true);
-        }
+        $service = new GeminiService(null);
+        $this->expectException(GeminiApiException::class);
+        $this->expectExceptionMessage('API key is not set or invalid');
+        $service->askTaipo('hello');
     }
 
     public function testConstructorSucceedsWithValidKey(): void

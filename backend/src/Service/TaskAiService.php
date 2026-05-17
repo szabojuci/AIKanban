@@ -141,16 +141,16 @@ class TaskAiService
         $contextSummary = $this->getProjectContextSummary($projectName, $parentId);
 
         $prompt = "You are TAIPO. You are working on the project described below.\n\n" .
-                  $contextSummary . "\n\n" .
-                  "Decompose this parent user story (which is NOT yet implementation stage) into 3-5 concrete, high-quality technical subtasks: '{$finalDescription}'.\n\n" .
-                  "Quality Guidelines:\n" .
-                  "- Ensure subtasks are highly relevant to the parent story AND consistent with overall project requirements/context.\n" .
-                  "- Make each subtask atomic, tightly scoped, and directly contributing to the parent story's goal.\n" .
-                  "- Use clear, professional, component-level language where appropriate.\n\n" .
-                  "Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.\n" .
-                  "Format each line as: [Short Title] | [User Story Text]\n" .
-                  "The Short Title must be under 40 characters.\n" .
-                  "Do not include statuses.";
+            $contextSummary . "\n\n" .
+            "Decompose this parent user story (which is NOT yet implementation stage) into 3-5 concrete, high-quality technical subtasks: '{$finalDescription}'.\n\n" .
+            "Quality Guidelines:\n" .
+            "- Ensure subtasks are highly relevant to the parent story AND consistent with overall project requirements/context.\n" .
+            "- Make each subtask atomic, tightly scoped, and directly contributing to the parent story's goal.\n" .
+            "- Use clear, professional, component-level language where appropriate.\n\n" .
+            "Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.\n" .
+            "Format each line as: [Short Title] | [User Story Text]\n" .
+            "The Short Title must be under 40 characters.\n" .
+            "Do not include statuses.";
 
         $rawTasks = $this->geminiService->askTaipo($prompt);
         $count = $this->insertSubtasks($projectName, $parentId, $finalDescription, $rawTasks);
@@ -186,7 +186,9 @@ class TaskAiService
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if (!$line) { continue; }
+            if (!$line) {
+                continue;
+            }
 
             $parts = explode('|', $line, 2);
             $title = trim($parts[0]);
@@ -226,14 +228,14 @@ class TaskAiService
         $taskContext = $this->formatTaskContext($task);
 
         $prompt = "You are TAIPO, an intelligent coding assistant for the project '{$projectName}'.\n\n" .
-                  "Project Context (includes requirements and other tasks):\n{$projectContext}\n\n" .
-                  "{$taskContext}\n\n" .
-                  "User Question: {$query}\n\n" .
-                  "Instructions:\n" .
-                  "- Answer the user's question specifically related to the current task.\n" .
-                  "- Use the project context to understand dependencies, shared requirements, or overall goals, but focus on the specific task.\n" .
-                  "- Refrain from lengthy intros.\n" .
-                  "- Provide code snippets if asked.";
+            "Project Context (includes requirements and other tasks):\n{$projectContext}\n\n" .
+            "{$taskContext}\n\n" .
+            "User Question: {$query}\n\n" .
+            "Instructions:\n" .
+            "- Answer the user's question specifically related to the current task.\n" .
+            "- Use the project context to understand dependencies, shared requirements, or overall goals, but focus on the specific task.\n" .
+            "- Refrain from lengthy intros.\n" .
+            "- Provide code snippets if asked.";
 
         $answer = $this->geminiService->askTaipo($prompt);
         $this->persistQueryAnswer($taskId, $query, $answer, $task['po_comments'] ?? '');
@@ -295,9 +297,25 @@ class TaskAiService
 
         $contextSummary = $projectName ? $this->getProjectContextSummary($projectName, $taskId) : "";
         $prompt = "You are TAIPO, an intelligent coding assistant. You are working on the project described below.\n\n" .
-                  $contextSummary . "\n\n" .
-                  "TASK TO IMPLEMENT: '{$finalDescription}'\n\n" .
-                  "Please generate a **complete, but very concise** solution (code). The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
+            $contextSummary . "\n\n" .
+            "TASK TO IMPLEMENT: '{$finalDescription}'\n\n" .
+            "Please generate **2 distinct implementation approaches** (e.g., Approach 1: Functional/Concise, Approach 2: Object-Oriented/Structured) for this task.\n\n" .
+            "Guidelines for each approach:\n" .
+            "- It must be a **complete, but very concise** solution (code).\n" .
+            "- It should be **functional**, but only include necessary imports/dependencies and logic.\n" .
+            "- Do not generate long explanatory comments or introduction text!\n\n" .
+            "Format your output EXACTLY as follows:\n\n" .
+            "## Approach 1: [Name/Type of Approach 1]\n" .
+            "[Very brief 1-2 sentence explanation of this approach]\n" .
+            "```[language]\n" .
+            "[Code for approach 1]\n" .
+            "```\n\n" .
+            "## Approach 2: [Name/Type of Approach 2]\n" .
+            "[Very brief 1-2 sentence explanation of this approach]\n" .
+            "```[language]\n" .
+            "[Code for approach 2]\n" .
+            "```\n\n" .
+            "If the programming language is not specified, infer it from the context or use a popular one suitable for the task.";
 
         $rawText = $this->geminiService->askTaipo($prompt);
         $rawText = trim($rawText);

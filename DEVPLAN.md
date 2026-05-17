@@ -286,7 +286,7 @@ This plan tracks the step-by-step progress of **T**he **AI**-based **P**roduct *
 
 **Story Points:** 5
 
-## [/] Story 6.2: Code Generation Support (Priority: LOW)
+## [X] Story 6.2: Code Generation Support (Priority: LOW)
 
 **As a** developer  
 **I want** TAIPO to optionally generate code based on board context  
@@ -297,7 +297,7 @@ This plan tracks the step-by-step progress of **T**he **AI**-based **P**roduct *
 [X] Code generation considers card context and requirements  
 [X] Generated code follows best practices  
 [X] Code is provided as suggestions, not auto-committed  
-[ ] Multiple implementation approaches may be offered  
+[X] Multiple implementation approaches may be offered  
 [X] Clear disclaimer that this is not primary use case  
 
 **Story Points:** 8

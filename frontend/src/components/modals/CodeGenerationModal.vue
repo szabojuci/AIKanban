@@ -51,15 +51,44 @@
                     </div>
                 </div>
 
-                <div v-else class="h-full">
+                <div v-else class="h-full flex flex-col gap-4">
+                    <!-- Tab switcher for multiple approaches -->
                     <div
-                        v-if="code"
+                        v-if="parsedApproaches.length > 1"
+                        class="tabs tabs-boxed bg-base-300/50 p-1 rounded-xl flex gap-1 self-start"
+                        role="tablist"
+                    >
+                        <button
+                            v-for="approach in parsedApproaches"
+                            :key="approach.id"
+                            @click="activeApproachId = approach.id"
+                            :class="['tab tab-sm md:tab-md font-semibold transition-all duration-200 rounded-lg', activeApproachId === approach.id ? 'tab-active bg-primary text-primary-content shadow-sm' : 'hover:bg-base-200/50']"
+                            role="tab"
+                            :aria-selected="activeApproachId === approach.id"
+                        >
+                            {{ approach.name }}
+                        </button>
+                    </div>
+
+                    <!-- Selected approach content -->
+                    <div
+                        v-if="currentApproach"
                         class="prose prose-sm prose-slate max-w-none"
                     >
                         <div
                             v-html="formattedCode"
                             class="bg-base-100 border border-base-300 rounded-2xl p-6 shadow-inner text-base-content selection:bg-primary/20"
                         >
+                        </div>
+                    </div>
+
+                    <!-- AI Secondary Use Case Disclaimer -->
+                    <div class="alert alert-info/10 border border-info/20 bg-info/5 rounded-xl p-3 flex gap-3 items-start text-xs text-info shrink-0 mt-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-info shrink-0 w-4 h-4 mt-0.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <span class="font-bold">Disclaimer:</span> Code generation is a secondary educational utility provided to accelerate prototyping. It is not auto-committed to your repository unless manually triggered. Always review and understand the generated code before integration.
                         </div>
                     </div>
                 </div>
@@ -80,7 +109,7 @@
                 <div class="flex gap-2">
                     <button
                         v-if="code && !loading && canCommit"
-                        @click="$emit('commit')"
+                        @click="emitCommit"
                         class="btn btn-primary btn-sm gap-2 shadow-md hover:scale-105 transition-transform"
                         title="Commit to GitHub (Moves task to DONE)"
                     >
@@ -120,15 +149,18 @@ const props = defineProps({
 const emit = defineEmits(['close', 'regenerate', 'commit']);
 
 const isCommitting = ref(false);
+const activeApproachId = ref(1);
 
 const commitToGithub = async () => {
-    if (!props.code) return;
+    const approach = currentApproach.value;
+    const codeToCommit = approach ? approach.content : props.code;
+    if (!codeToCommit) return;
     isCommitting.value = true;
     try {
         const formData = new FormData();
         formData.append('action', 'commit_to_github');
         formData.append('task_id', props.task?.id || '');
-        formData.append('code', props.code);
+        formData.append('code', codeToCommit);
 
         const response = await axios.post('http://localhost:8000/', formData, {
             withCredentials: true
@@ -147,9 +179,62 @@ const commitToGithub = async () => {
     }
 };
 
+const parsedApproaches = computed(() => {
+    if (!props.code) return [];
+
+    // Split the markdown content by "## Approach " heading
+    const parts = props.code.split(/## Approach (\d+):/i);
+    if (parts.length < 3) {
+        // Fallback if not matching the expected multiple approaches format
+        return [{
+            id: 1,
+            name: 'Default Approach',
+            content: props.code
+        }];
+    }
+
+    const approaches = [];
+    // parts[0] is any text before the first approach (could be empty or introduction)
+    // Then parts[1] = "1", parts[2] = rest of approach 1 content, parts[3] = "2", parts[4] = rest of approach 2 content...
+    for (let i = 1; i < parts.length; i += 2) {
+        const id = Number.parseInt(parts[i], 10);
+        const rawContent = parts[i + 1] || '';
+
+        // Find the first non-empty line as the heading/name of the approach
+        const lines = rawContent.split('\n');
+        let name = `Approach ${id}`;
+        let contentIndex = 0;
+
+        for (let j = 0; j < lines.length; j++) {
+            if (lines[j].trim()) {
+                name = lines[j].trim();
+                contentIndex = j + 1;
+                break;
+            }
+        }
+
+        const content = lines.slice(contentIndex).join('\n').trim();
+
+        approaches.push({
+            id: id,
+            name: name,
+            content: `## Approach ${id}: ${name}\n\n${content}`
+        });
+    }
+    return approaches;
+});
+
+const currentApproach = computed(() => {
+    const approaches = parsedApproaches.value;
+    if (!approaches.length) return null;
+    const match = approaches.find(a => a.id === activeApproachId.value);
+    return match || approaches[0];
+});
+
 const formattedCode = computed(() => {
-    if (!props.code) return '';
-    return marked.parse(props.code);
+    const approach = currentApproach.value;
+    if (!approach) return '';
+    return marked.parse(approach.content);
 });
 
 const canCommit = computed(() => {
@@ -158,11 +243,19 @@ const canCommit = computed(() => {
     return props.task.status?.toUpperCase().includes('REVIEW');
 });
 
+const emitCommit = () => {
+    const approach = currentApproach.value;
+    const codeToCommit = approach ? approach.content : props.code;
+    emit('commit', codeToCommit);
+};
+
 const copyTooltip = ref('Copy Code');
 
 const copyToClipboard = async () => {
     try {
-        await navigator.clipboard.writeText(props.code);
+        const approach = currentApproach.value;
+        const codeToCopy = approach ? approach.content : props.code;
+        await navigator.clipboard.writeText(codeToCopy);
         copyTooltip.value = 'Copied!';
         setTimeout(() => {
             copyTooltip.value = 'Copy Code';

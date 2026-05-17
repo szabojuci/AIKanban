@@ -44,7 +44,8 @@ class TaskServiceTest extends TestCase
         $this->pdo->exec("INSERT INTO projects (name, user_id) VALUES ('TestProject', 1)");
 
         $geminiService = new GeminiService(null);
-        $this->taskService = new TaskService($this->pdo, $geminiService);
+        $historyService = $this->createMock(\App\Service\HistoryService::class);
+        $this->taskService = new TaskService($this->pdo, $geminiService, $historyService);
     }
 
     public function testAddTaskCreatesTaskInSprint(): void

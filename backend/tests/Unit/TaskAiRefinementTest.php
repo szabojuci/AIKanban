@@ -52,11 +52,21 @@ class TaskAiRefinementTest extends TestCase
         $stmtInfo = $this->createMock(PDOStatement::class);
         $stmtInfo->method('fetch')->willReturn(['summary' => 'Context info', 'team_id' => 1]);
 
-        $this->pdo->method('prepare')->willReturnOnConsecutiveCalls($stmt, $stmtInfo);
+        // Mock requirements stmt
+        $stmtReq = $this->createMock(PDOStatement::class);
+        $stmtReq->method('fetchAll')->willReturn(['Requirement 1']);
+
+        // Mock tasks list stmt
+        $stmtTasks = $this->createMock(PDOStatement::class);
+        $stmtTasks->method('fetchAll')->willReturn([
+            ['id' => 124, 'title' => 'Other Task', 'description' => 'Other Desc', 'status' => 'SPRINT BACKLOG']
+        ]);
+
+        $this->pdo->method('prepare')->willReturnOnConsecutiveCalls($stmt, $stmtInfo, $stmtReq, $stmtTasks);
 
         $this->geminiService->expects($this->once())
-                            ->method('askTaipo')
-                            ->willReturn('Enhanced description with Acceptance Criteria.');
+            ->method('askTaipo')
+            ->willReturn('Enhanced description with Acceptance Criteria.');
 
         $result = $this->taskAiService->refineTaskDescription($taskId);
 

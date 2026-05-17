@@ -16,6 +16,8 @@ use PHPUnit\Framework\TestCase;
 class PoActivityServiceTest extends TestCase
 {
     private PDO $pdo;
+    private $taskAiService;
+    private $historyService;
 
     protected function setUp(): void
     {
@@ -42,12 +44,15 @@ class PoActivityServiceTest extends TestCase
         foreach ($config['schema'] as $sql) {
             $this->pdo->exec($sql);
         }
+
+        $this->taskAiService = $this->createMock(\App\Service\TaskAiService::class);
+        $this->historyService = $this->createMock(\App\Service\HistoryService::class);
     }
 
     public function testTickDoesNothingWithEmptyProjectName(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         // Should not throw
         $service->tick('', 1);
@@ -57,7 +62,7 @@ class PoActivityServiceTest extends TestCase
     public function testTickDoesNothingForNonexistentProject(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         // No project exists, should exit gracefully
         $service->tick('NonExistent', 1);
@@ -71,7 +76,7 @@ class PoActivityServiceTest extends TestCase
         $gemini = $this->createMock(GeminiService::class);
         $gemini->expects($this->never())->method('askTaipo');
 
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
         $service->tick('InactiveProject', 1);
 
         $this->assertTrue(true);
@@ -86,10 +91,10 @@ class PoActivityServiceTest extends TestCase
         $_ENV['SIM_MAX_FEEDBACK_SEC'] = 3600; // Fixed 1h for testing
 
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         $method = new \ReflectionMethod(PoActivityService::class, 'scheduleNextActivity');
-        $method->invoke($service, $projectId, 'comment');
+        $method->invoke($service, $projectId, null, 'comment');
 
         $stmt = $this->pdo->query("SELECT next_comment_at FROM projects WHERE id = $projectId");
         $nextAt = $stmt->fetchColumn();
@@ -103,7 +108,7 @@ class PoActivityServiceTest extends TestCase
     public function testParseCrResponseWithValidInput(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         // Use Reflection to test private method
         $method = new \ReflectionMethod(PoActivityService::class, 'parseCrResponse');
@@ -120,7 +125,7 @@ class PoActivityServiceTest extends TestCase
     public function testParseCrResponseReturnsNullForInvalidInput(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         $method = new \ReflectionMethod(PoActivityService::class, 'parseCrResponse');
 
@@ -133,7 +138,7 @@ class PoActivityServiceTest extends TestCase
     public function testParseCrResponseHandlesMissingStory(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         $method = new \ReflectionMethod(PoActivityService::class, 'parseCrResponse');
 
@@ -146,7 +151,7 @@ class PoActivityServiceTest extends TestCase
     public function testIsWorkingHoursMethod(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         $method = new \ReflectionMethod(PoActivityService::class, 'isWorkingHours');
 
@@ -173,7 +178,7 @@ class PoActivityServiceTest extends TestCase
     public function testAddPoCommentAppendsToExisting(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         // Create project and task
         $this->pdo->exec("INSERT INTO projects (name, user_id) VALUES ('TestPO', 1)");
@@ -193,7 +198,7 @@ class PoActivityServiceTest extends TestCase
     public function testAddCrTaskCreatesBacklogItem(): void
     {
         $gemini = new GeminiService(null);
-        $service = new PoActivityService($this->pdo, $gemini, 'sqlite');
+        $service = new PoActivityService($this->pdo, $gemini, $this->taskAiService, $this->historyService, 'sqlite');
 
         $this->pdo->exec("INSERT INTO projects (name, user_id) VALUES ('CRProject', 1)");
 
