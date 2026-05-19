@@ -191,12 +191,14 @@ TAIPO ships a curated subset of the [TAWOS dataset](https://github.com/SOLAR-gro
 
 **Action Parameter:** `action` (in GET)
 
-| Action          | Method | Required Fields | Auth Level | Description                                                                                           |
-| :-------------- | :----- | :-------------- | :--------- | :---------------------------------------------------------------------------------------------------- |
-| `get_dashboard` | GET    | None            | Instructor | Returns a system overview: grouped `.env` config (masked secrets), TAWOS stats, and project activity. |
+| Action          | Method | Required Fields                                             | Auth Level | Description                                                                                           |
+| :-------------- | :----- | :---------------------------------------------------------- | :--------- | :---------------------------------------------------------------------------------------------------- |
+| `get_dashboard` | GET    | None                                                        | Instructor | Returns a system overview: grouped `.env` config (masked secrets), TAWOS stats, and project activity. |
+| `export_backup` | GET    | None                                                        | Instructor | Generates and downloads a database-independent JSON backup containing all tables in the system.       |
+| `import_backup` | POST   | `backup_file` (uploaded file) or `backup_data` (raw string) | Instructor | Restores the database from a structured JSON backup within a safe database transaction.               |
 
 > [!IMPORTANT]
-> This endpoint requires the **Instructor** role. Non-instructor users will receive a **403 Forbidden** response.
+> These endpoints require the **Instructor** role. Non-instructor users will receive a **403 Forbidden** response.
 
 **Response Fields:**
 

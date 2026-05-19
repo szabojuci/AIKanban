@@ -133,4 +133,22 @@ describe('API Service', () => {
         expect(mockPost).toHaveBeenCalledWith('/', { action: 'logout' });
         expect(result.success).toBe(true);
     });
+
+    it('getExportBackupUrl returns correct path', () => {
+        const url = api.getExportBackupUrl();
+        expect(url).toBe('/TAIPO/api/?action=export_backup');
+    });
+
+    it('importBackup sends FormData with action and file', async () => {
+        mockPost.mockResolvedValue({ data: { success: true } });
+        const mockFile = new File(['{}'], 'backup.json', { type: 'application/json' });
+        const result = await api.importBackup(mockFile);
+
+        expect(mockPost).toHaveBeenCalledWith('/', expect.any(FormData), {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        expect(result.success).toBe(true);
+    });
 });

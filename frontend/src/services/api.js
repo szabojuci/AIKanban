@@ -391,5 +391,21 @@ export const api = {
     async getDashboard() {
         const response = await client.get('/?action=get_dashboard');
         return response.data;
+    },
+
+    getExportBackupUrl() {
+        return `${API_BASE}/?action=export_backup`;
+    },
+
+    async importBackup(file) {
+        const formData = new FormData();
+        formData.append('action', 'import_backup');
+        formData.append('backup_file', file);
+        const response = await client.post('/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
     }
 };

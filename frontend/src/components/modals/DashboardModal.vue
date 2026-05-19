@@ -60,6 +60,13 @@
                     >
                         Teams
                     </a>
+                    <a
+                        :class="{ 'tab-active': activeTab === 'backups' }"
+                        @click="activeTab = 'backups'"
+                        class="tab"
+                    >
+                        Backups & Restore
+                    </a>
                 </div>
 
                 <!-- Tab: Configuration -->
@@ -252,6 +259,91 @@
                     </div>
                 </div>
 
+                <!-- Tab: Backups & Restore -->
+                <div
+                    v-if="activeTab === 'backups'"
+                    class="max-h-[60vh] overflow-y-auto space-y-6 p-2"
+                >
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Export card -->
+                        <div class="card bg-base-200 shadow-lg border border-base-300">
+                            <div class="card-body">
+                                <h3 class="card-title text-primary flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                    </svg>
+                                    Export Database Backup
+                                </h3>
+                                <p class="text-sm opacity-80 my-2">
+                                    Download a database-independent JSON backup file of TAIPO. This contains all platform configurations, teams, users, roles, projects, tasks, requirements, history, and AI metrics.
+                                </p>
+                                <div class="card-actions justify-end mt-4">
+                                    <a
+                                        :href="api.getExportBackupUrl()"
+                                        download
+                                        class="btn btn-primary gap-2"
+                                    >
+                                        Export JSON Backup
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Import card -->
+                        <div class="card bg-base-200 shadow-lg border border-base-300">
+                            <div class="card-body">
+                                <h3 class="card-title text-secondary flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                                    </svg>
+                                    Restore Database Backup
+                                </h3>
+                                <p class="text-sm opacity-80 my-2">
+                                    Upload a previously exported JSON backup file to restore TAIPO.
+                                    <strong class="text-error">Warning: This will completely overwrite all existing database tables. This action cannot be undone.</strong>
+                                </p>
+
+                                <div class="form-control w-full mt-2">
+                                    <input
+                                        @change="onBackupFileChange"
+                                        type="file"
+                                        accept=".json"
+                                        class="file-input file-input-bordered file-input-sm w-full"
+                                    />
+                                </div>
+
+                                <div
+                                    v-if="importError"
+                                    class="alert alert-error text-xs p-2 mt-2"
+                                >
+                                    {{ importError }}
+                                </div>
+
+                                <div
+                                    v-if="importSuccess"
+                                    class="alert alert-success text-xs p-2 mt-2"
+                                >
+                                    Database restored successfully! Reloading...
+                                </div>
+
+                                <div class="card-actions justify-end mt-4">
+                                    <button
+                                        @click="triggerRestore"
+                                        :disabled="!selectedBackupFile || importing"
+                                        class="btn btn-secondary gap-2"
+                                    >
+                                        <span
+                                            v-if="importing"
+                                            class="loading loading-spinner loading-xs">
+                                        </span>
+                                        Restore Backup
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tab: Projects -->
                 <div
                     v-if="activeTab === 'projects'"
@@ -391,6 +483,11 @@ const dashboardData = ref({
     teams: []
 });
 
+const selectedBackupFile = ref(null);
+const importing = ref(false);
+const importError = ref(null);
+const importSuccess = ref(false);
+
 // Track which config groups are expanded (first group open by default)
 const expandedGroups = reactive({});
 
@@ -488,6 +585,42 @@ const exportProjectsCsv = () => {
     document.body.appendChild(link);
     link.click();
     link.remove();
+};
+
+const onBackupFileChange = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+        selectedBackupFile.value = files[0];
+        importError.value = null;
+        importSuccess.value = false;
+    }
+};
+
+const triggerRestore = async () => {
+    if (!selectedBackupFile.value) return;
+
+    const confirmed = globalThis.confirm("Are you absolutely sure you want to restore this backup? This will completely replace the current database and wipe out all current projects, tasks, and users.");
+    if (!confirmed) return;
+
+    importing.value = true;
+    importError.value = null;
+    importSuccess.value = false;
+
+    try {
+        const res = await api.importBackup(selectedBackupFile.value);
+        if (res.success) {
+            importSuccess.value = true;
+            setTimeout(() => {
+                globalThis.location.reload();
+            }, 2000);
+        } else {
+            importError.value = res.error || 'Restore failed.';
+        }
+    } catch (e) {
+        importError.value = e.response?.data?.error || e.message;
+    } finally {
+        importing.value = false;
+    }
 };
 
 const viewBoard = (projectName) => {

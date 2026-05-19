@@ -22,6 +22,7 @@ use App\Exception\GeminiApiException;
 use App\Exception\ProjectAlreadyExistsException;
 
 use App\Service\ApplicationService;
+use App\Service\BackupService;
 use App\Service\GeminiService;
 use App\Service\GitHubService;
 use App\Service\HistoryService;
@@ -38,6 +39,8 @@ use App\Service\TeamService;
 class Application
 {
     private AuthController $authController;
+    private BackupService $backupService;
+    private DashboardController $dashboardController;
     private GeminiService $geminiService;
     private GitHubService $githubService;
     private PoActivityService $poActivityService;
@@ -52,7 +55,6 @@ class Application
     private TawosService $tawosService;
     private TeamController $teamController;
     private TeamService $teamService;
-    private DashboardController $dashboardController;
 
     public function run()
     {
@@ -164,14 +166,22 @@ class Application
                 $this->handleRequirementAction($action);
                 exit;
 
-            // API Cost Actions
+                // API Cost Actions
             case 'get_api_usage':
                 $this->dashboardController->handleGetApiUsage();
                 exit;
 
-            // Instructor / Simulation Actions
+                // Instructor / Simulation Actions
             case 'get_dashboard':
                 $this->dashboardController->handleDashboardAction();
+                exit;
+
+            case 'export_backup':
+                $this->dashboardController->handleExportBackup();
+                exit;
+
+            case 'import_backup':
+                $this->dashboardController->handleImportBackup();
                 exit;
 
             default:
@@ -188,19 +198,43 @@ class Application
     {
         $actionsMap = [
             'handleTaskAction' => [
-                'add_task', 'delete_task', 'toggle_importance', 'update_status',
-                'reorder_tasks', 'edit_task', 'generate_code', 'generate_project_tasks',
-                'decompose_task', 'commit_to_github', 'query_task', 'create_project_from_spec',
-                'get_task_history', 'get_project_history', 'review_task', 'refine_task', 'suggest_priority'
+                'add_task',
+                'delete_task',
+                'toggle_importance',
+                'update_status',
+                'reorder_tasks',
+                'edit_task',
+                'generate_code',
+                'generate_project_tasks',
+                'decompose_task',
+                'commit_to_github',
+                'query_task',
+                'create_project_from_spec',
+                'get_task_history',
+                'get_project_history',
+                'review_task',
+                'refine_task',
+                'suggest_priority'
             ],
             'handleProjectAction' => [
-                'create_project', 'list_projects', 'update_project', 'delete_project',
-                'get_project_defaults', 'set_project_team', 'toggle_project_activity',
+                'create_project',
+                'list_projects',
+                'update_project',
+                'delete_project',
+                'get_project_defaults',
+                'set_project_team',
+                'toggle_project_activity',
                 'list_user_teams'
             ],
             'handleTeamAction' => [
-                'list_team_users', 'remove_team_user', 'update_team_user_role',
-                'list_teams', 'create_team', 'list_roles', 'assign_team_user', 'update_team'
+                'list_team_users',
+                'remove_team_user',
+                'update_team_user_role',
+                'list_teams',
+                'create_team',
+                'list_roles',
+                'assign_team_user',
+                'update_team'
             ]
         ];
 
@@ -359,7 +393,10 @@ class Application
 
             $this->poActivityService = new PoActivityService($pdo, $this->geminiService, $this->taskAiService, $historyService, $database->getDbType(), $this->tawosService);
 
+            $this->backupService = new BackupService($pdo);
+
             $this->dashboardController = new DashboardController(
+                $this->backupService,
                 $this->geminiService,
                 $this->projectService,
                 $this->tawosService,
@@ -514,10 +551,12 @@ class Application
                 break;
             case 'get_project_defaults':
                 $this->projectController->handleGetDefaults();
-                exit;break;
+                exit;
+                break;
             case 'toggle_project_activity':
                 $this->projectController->handleToggleActivity();
-                exit;break;
+                exit;
+                break;
             case 'set_project_team':
                 $id = (int)($_POST['id'] ?? 0);
                 $teamId = (int)($_POST['team_id'] ?? 0) ?: null;

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Config;
 use App\Configuration\GeminiConfig;
+use App\Service\BackupService;
 use App\Service\GeminiService;
 use App\Service\ProjectService;
 use App\Service\TawosService;
@@ -12,12 +13,16 @@ use Exception;
 
 class DashboardController
 {
+    private const ERR_INSTRUCTOR_REQUIRED = 'Forbidden. Instructor role required.';
+
     private GeminiService $geminiService;
     private ProjectService $projectService;
     private TawosService $tawosService;
     private TeamService $teamService;
+    private BackupService $backupService;
 
     public function __construct(
+        BackupService $backupService,
         GeminiService $geminiService,
         ProjectService $projectService,
         TawosService $tawosService,
@@ -27,6 +32,7 @@ class DashboardController
         $this->projectService = $projectService;
         $this->tawosService = $tawosService;
         $this->teamService = $teamService;
+        $this->backupService = $backupService;
     }
 
     public function handleGetApiUsage(): void
@@ -77,7 +83,7 @@ class DashboardController
     {
         if (!($_SESSION['is_instructor'] ?? false)) {
             header(Config::APP_JSON, true, 403);
-            echo json_encode(['success' => false, 'error' => 'Forbidden. Instructor role required.']);
+            echo json_encode(['success' => false, 'error' => self::ERR_INSTRUCTOR_REQUIRED]);
             return;
         }
 
@@ -205,6 +211,59 @@ class DashboardController
                 'completion_rate' => $m['total_tasks'] > 0 ? round(($m['done_tasks'] / $m['total_tasks']) * 100) : 0,
                 'stalled' => $stalled
             ];
+        }
+    }
+
+    public function handleExportBackup(): void
+    {
+        if (!($_SESSION['is_instructor'] ?? false)) {
+            header(Config::APP_JSON, true, 403);
+            echo json_encode(['success' => false, 'error' => self::ERR_INSTRUCTOR_REQUIRED]);
+            return;
+        }
+
+        try {
+            $json = $this->backupService->exportBackup();
+            $filename = 'taipo_backup_' . date('Ymd_His') . '.json';
+
+            header('Content-Type: application/json');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+            echo $json;
+        } catch (Exception $e) {
+            http_response_code(500);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => false, 'error' => 'Export failed: ' . $e->getMessage()]);
+        }
+    }
+
+    public function handleImportBackup(): void
+    {
+        if (!($_SESSION['is_instructor'] ?? false)) {
+            header(Config::APP_JSON, true, 403);
+            echo json_encode(['success' => false, 'error' => self::ERR_INSTRUCTOR_REQUIRED]);
+            return;
+        }
+
+        header(Config::APP_JSON);
+        try {
+            $jsonData = null;
+            if (isset($_FILES['backup_file']) && $_FILES['backup_file']['error'] === UPLOAD_ERR_OK) {
+                $jsonData = file_get_contents($_FILES['backup_file']['tmp_name']);
+            } elseif (isset($_POST['backup_data'])) {
+                $jsonData = $_POST['backup_data'];
+            }
+
+            if (empty($jsonData)) {
+                throw new \InvalidArgumentException("No backup file uploaded.");
+            }
+
+            $success = $this->backupService->importBackup($jsonData);
+            echo json_encode(['success' => $success]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => 'Import failed: ' . $e->getMessage()]);
         }
     }
 }
