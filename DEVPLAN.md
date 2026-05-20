@@ -9,8 +9,8 @@ This plan tracks the step-by-step progress of **T**he **AI**-based **P**roduct *
 [X] Epic 3: Project Simulation Capabilities  
 [X] Epic 4: Backend and Integration  
 [X] Epic 5: Quality and Safety Features  
-[/] Epic 6: Educational Use Cases  
-[/] Epic 7: Technical Debt and Infrastructure  
+[X] Epic 6: Educational Use Cases  
+[X] Epic 7: Technical Debt and Infrastructure  
 
 ---
 
