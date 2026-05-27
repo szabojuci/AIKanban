@@ -9,6 +9,7 @@ use Dotenv\Dotenv;
 use Exception;
 
 use App\Configuration\GeminiConfig;
+use App\Configuration\RolePermissions;
 
 use App\Controller\AuthController;
 use App\Controller\DashboardController;
@@ -34,10 +35,12 @@ use App\Service\TaskAiService;
 use App\Service\TaskService;
 use App\Service\TawosService;
 use App\Service\TeamService;
+use App\Service\PermissionCheckTrait;
 
 
 class Application
 {
+    use PermissionCheckTrait;
     private AuthController $authController;
     private BackupService $backupService;
     private DashboardController $dashboardController;
@@ -81,7 +84,7 @@ class Application
         $isSecure = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ||
             (isset($_ENV['FORCE_HTTPS']) && $_ENV['FORCE_HTTPS'] === 'true')) && !Config::isOffline();
 
-        session_set_cookie_params([
+        session_set_cookie_params([ // NOSONAR - 'secure' flag is set dynamically based on HTTPS config
             'lifetime' => 86400 * 30, // 30 days
             'path' => '/',
             'secure' => $isSecure,
@@ -129,6 +132,11 @@ class Application
         if (!isset($_SESSION['user_id'])) {
             header(Config::APP_JSON, true, 401);
             echo json_encode(['success' => false, 'error' => 'Unauthorized. Please log in.']);
+            exit;
+        }
+
+        // ROLE-BASED PERMISSION CHECK
+        if (!$this->checkActionPermission($action)) {
             exit;
         }
 
@@ -315,6 +323,14 @@ class Application
             $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
         }
 
+        // Resolve user role for the current project
+        $userRole = null;
+        $allowedActions = [];
+        if (isset($_SESSION['user_id']) && !empty($currentProjectName)) {
+            $userRole = $this->resolveUserRole((int)$_SESSION['user_id'], $currentProjectName);
+            $allowedActions = RolePermissions::getAllowedActions($userRole);
+        }
+
         header(Config::APP_JSON);
         echo json_encode([
             'authenticated' => isset($_SESSION['user_id']),
@@ -324,6 +340,8 @@ class Application
             'error' => $error,
             'columns' => array_keys($columns),
             'tasks' => $kanbanTasks,
+            'userRole' => $userRole,
+            'allowedActions' => $allowedActions,
             'config' => [
                 'projectName' => Config::getProjectName(),
                 'maxTitleLength' => Config::getMaxTitleLength(),

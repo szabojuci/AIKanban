@@ -192,6 +192,7 @@
                     :current-project="currentProject"
                     :max-title-length="appConfig.maxTitleLength"
                     :max-description-length="appConfig.maxDescriptionLength"
+                    :user-role="userRole"
                     @task-updated="refreshTasks"
                     @task-deleted="refreshTasks"
                     @task-added="refreshTasks"
@@ -329,6 +330,7 @@ const appConfig = ref({
     maxQueryLength: 1320
 });
 const currentProject = ref(null);
+const userRole = ref(null);
 const showGithubModal = ref(false);
 const drawerOpen = ref(false);
 const theme = ref(globalThis?.localStorage?.getItem('theme') || 'dark');
@@ -511,6 +513,11 @@ const refreshTasks = async () => {
         }
 
         tasks.value = data.tasks || {};
+
+        // Update user role for the current project
+        if (data.userRole) {
+            userRole.value = data.userRole;
+        }
 
         // Enrich tasks with subtask counts
         enrichTasksWithSubtaskInfo();

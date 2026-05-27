@@ -17,7 +17,7 @@
 
             <!-- Add Task Button (Top - Only for Backlog) -->
             <div
-                v-if="title.includes('BACKLOG')"
+                v-if="title.includes('BACKLOG') && canAddTask"
                 class="p-2"
             >
                 <button
@@ -41,6 +41,8 @@
                 <template #item="{ element }">
                     <TaskCard
                         :task="element"
+                        :status="title"
+                        :user-role="userRole"
                         @request-delete="confirmDeleteTask(element)"
                         @toggle-imp="$emit('task-updated')"
                         @task-updated="$emit('task-updated')"
@@ -62,7 +64,7 @@
 
             <!-- Add Task Button (Bottom - Only for Backlog) -->
             <div
-                v-if="title.includes('BACKLOG')"
+                v-if="title.includes('BACKLOG') && canAddTask"
                 class="p-2 mt-auto"
             >
                 <button
@@ -105,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import draggable from "vuedraggable";
 import TaskCard from "./TaskCard.vue";
 import TaskModal from "./modals/TaskModal.vue";
@@ -119,6 +121,7 @@ const props = defineProps({
     currentProject: String,
     maxTitleLength: Number,
     maxDescriptionLength: Number,
+    userRole: String,
 });
 
 const emit = defineEmits([
@@ -136,6 +139,11 @@ const isTaskModalOpen = ref(false);
 const taskToEdit = ref(null);
 const isTaskModalReadOnly = ref(false);
 
+// Only PO and Instructor can add tasks
+const canAddTask = computed(() => {
+    return ['Instructor', 'Product Owner'].includes(props.userRole);
+});
+
 const getColumnHeaderClasses = (style) => {
     // Tailwind requires full class names to prevent purging
     const classMap = {
@@ -146,10 +154,10 @@ const getColumnHeaderClasses = (style) => {
         'success': 'bg-success text-success-content',
         'neutral': 'bg-neutral text-neutral-content'
     };
-    
+
     // Mapping internal style names to DaisyUI/Tailwind colors if needed
     const normalizedStyle = style === "danger" ? "error" : style;
-    
+
     return classMap[normalizedStyle] || 'bg-base-300 text-base-content';
 };
 

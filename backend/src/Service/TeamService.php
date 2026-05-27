@@ -140,4 +140,39 @@ class TeamService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Resolves the user's role for a given project by checking:
+     * 1. The user's role in the project's team (via team_users)
+     * 2. Whether the user is the project owner (fallback to Product Owner)
+     * Returns null if the user has no role for the project.
+     */
+    public function getUserRoleForProject(int $userId, string $projectName): ?string
+    {
+        // 1. Check team role
+        $stmt = $this->pdo->prepare("
+            SELECT r.name
+            FROM {$this->prefix}team_users tu
+            JOIN {$this->prefix}roles r ON tu.role_id = r.id
+            JOIN {$this->prefix}projects p ON p.team_id = tu.team_id
+            WHERE tu.user_id = :user_id AND p.name = :project_name
+        ");
+        $stmt->execute([':user_id' => $userId, ':project_name' => $projectName]);
+        $role = $stmt->fetchColumn();
+
+        if ($role) {
+            return $role;
+        }
+
+        // 2. Project owner without team → treat as Product Owner
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*) FROM {$this->prefix}projects
+            WHERE name = :name AND user_id = :user_id
+        ");
+        $stmt->execute([':name' => $projectName, ':user_id' => $userId]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            return 'Product Owner';
+        }
+
+        return null;
+    }
 }
