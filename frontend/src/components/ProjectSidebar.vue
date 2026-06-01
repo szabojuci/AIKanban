@@ -540,6 +540,8 @@ const parseProjectsResponse = (res) => {
         rawList = res;
     } else if (res.projects) {
         rawList = res.projects;
+    } else if (res.data) {
+        rawList = res.data;
     } else if (res.existingProjects) {
         rawList = res.existingProjects;
     }

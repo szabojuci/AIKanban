@@ -74,9 +74,10 @@ export const api = {
     },
 
     async getProjects() {
-        // Backend returns existingProjects in the main view data
-        const response = await client.get('/');
-        return response.data.projects || response.data.existingProjects || [];
+        const response = await client.post('/', {
+            action: 'list_projects'
+        });
+        return response.data;
     },
 
     async generateTasks(projectName, prompt, teamId = null) {
