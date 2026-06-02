@@ -598,15 +598,15 @@ const fetchProjects = async () => {
 };
 
 onMounted(async () => {
-    try {
-        const defaults = await api.getProjectDefaults();
-        if (defaults.success) {
-            supportedLanguages.value = defaults.languages;
-            languagePrompts.value = defaults.prompts;
-        }
-    } catch (e) {
-        console.error("Failed to load project defaults", e);
+    // Run both calls in parallel — neither depends on the other
+    const [defaultsResult] = await Promise.allSettled([
+        api.getProjectDefaults(),
+        fetchProjects()
+    ]);
+
+    if (defaultsResult.status === 'fulfilled' && defaultsResult.value.success) {
+        supportedLanguages.value = defaultsResult.value.languages;
+        languagePrompts.value = defaultsResult.value.prompts;
     }
-    fetchProjects();
 });
 </script>

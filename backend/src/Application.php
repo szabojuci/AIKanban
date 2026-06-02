@@ -317,9 +317,13 @@ class Application
         }
 
         $kanbanTasks = [];
+        $tickProjectName = null;
+        $tickUserId = null;
         // Only load tasks if authenticated
         if (isset($_SESSION['user_id'])) {
-            $this->poActivityService->tick($currentProjectName, (int)$_SESSION['user_id']);
+            // Defer tick() to after response — load tasks first for fast page render
+            $tickProjectName = $currentProjectName;
+            $tickUserId = (int)$_SESSION['user_id'];
             $kanbanTasks = $this->loadKanbanTasks($currentProjectName, $columns, $error);
         }
 
@@ -331,9 +335,12 @@ class Application
             $allowedActions = RolePermissions::getAllowedActions($userRole);
         }
 
+        // Release session lock so other requests from the same client can proceed
+        session_write_close();
+
         header(Config::APP_JSON);
         echo json_encode([
-            'authenticated' => isset($_SESSION['user_id']),
+            'authenticated' => isset($tickUserId),
             'currentProjectName' => $currentProjectName,
             'existingProjects' => $existingProjects,
             'projects' => $projectsData,
@@ -352,6 +359,25 @@ class Application
                 'registrationEnabled' => Config::isRegistrationEnabled(),
             ]
         ]);
+
+        // Flush response to client before running PO simulation tick.
+        // tick() may trigger slow Gemini API calls — deferring it means
+        // the user sees data immediately while simulation runs after.
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            if (ob_get_level()) {
+                ob_end_flush();
+            }
+            flush();
+        }
+
+        // Run PO Activity tick AFTER response is sent
+        if ($tickProjectName && $tickUserId) {
+            ignore_user_abort(true);
+            $this->poActivityService->tick($tickProjectName, $tickUserId);
+        }
+
         exit;
     }
 
