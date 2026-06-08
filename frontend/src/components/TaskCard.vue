@@ -15,8 +15,9 @@
             class="card-body p-2 border-b-4 border-azure-300 rounded-box"
         >
             <div class="flex justify-between items-start mb-2">
-                <!-- Priority Stars -->
+                <!-- Priority Stars (PO/Instructor only, hidden on DONE) -->
                 <div
+                    v-if="canChangePriority"
                     @mouseleave="hoverPriority = 0"
                     class="flex space-x-0.5 bg-base-100 rounded p-0.5 shadow-sm"
                 >
@@ -53,6 +54,32 @@
                         </svg>
                     </button>
                 </div>
+                <!-- Read-only priority display (students or DONE) -->
+                <div
+                    v-else-if="priority > 0"
+                    class="flex space-x-0.5 bg-base-100 rounded p-0.5 shadow-sm opacity-60"
+                >
+                    <span
+                        v-for="i in 3"
+                        :key="i"
+                        class="w-5 h-5 flex items-center justify-center"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            :fill="priority >= i ? getStarColor(i) : 'none'"
+                            :stroke="priority >= i ? getStarColor(i) : 'currentColor'"
+                            stroke-width="2"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.519 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.519-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                            />
+                        </svg>
+                    </span>
+                </div>
 
                 <div class="dropdown dropdown-end">
                     <button
@@ -69,19 +96,25 @@
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
-                                d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"
-                            ></path>
+                                d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
                         </svg>
                     </button>
                     <ul class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
-                        <li>
+                        <li v-if="canEdit">
                             <button
                                 @click.prevent="enableEdit"
                             >
                                 ✏️ Edit
                             </button>
                         </li>
-                        <li>
+                        <li v-if="!canEdit">
+                            <button
+                                @click.prevent="enableView"
+                            >
+                                👁️ View
+                            </button>
+                        </li>
+                        <li v-if="canDecompose">
                             <button
                                 @click.prevent="$emit('decompose', task)"
                                 type="button"
@@ -89,7 +122,7 @@
                                 🔨 Decompose Story
                             </button>
                         </li>
-                        <li>
+                        <li v-if="canGenerateCode">
                             <button
                                 @click.prevent="$emit('generate-code', task)"
                                 type="button"
@@ -97,7 +130,7 @@
                                 💻 Generate Code
                             </button>
                         </li>
-                        <li>
+                        <li v-if="canAskAi">
                             <button
                                 @click.prevent="$emit('query-task', task)"
                                 type="button"
@@ -105,7 +138,7 @@
                                 ❓ Ask AI
                             </button>
                         </li>
-                        <li>
+                        <li v-if="canDelete">
                             <button
                                 @click.prevent="requestDelete"
                                 type="button"
@@ -192,6 +225,8 @@ import { api } from "../services/api";
 
 const props = defineProps({
     task: Object,
+    status: String,
+    userRole: String,
 });
 
 const emit = defineEmits([
@@ -204,6 +239,31 @@ const emit = defineEmits([
     "request-edit",
     "request-view",
 ]);
+
+// --- Role helpers ---
+const isPo = computed(() => ['Instructor', 'Product Owner'].includes(props.userRole));
+const isDone = computed(() => props.status === 'DONE');
+const isBacklog = computed(() => (props.status || '').includes('BACKLOG'));
+const isWip = computed(() => (props.status || '').includes('WIP'));
+
+// --- Action visibility based on role + status ---
+// Edit: all roles, but not DONE (DONE opens read-only view instead)
+const canEdit = computed(() => !isDone.value);
+
+// Decompose: PO/Instructor only, backlog only
+const canDecompose = computed(() => isPo.value && isBacklog.value);
+
+// Generate Code: all roles, backlog + WIP only (not TESTING/REVIEW/DONE)
+const canGenerateCode = computed(() => isBacklog.value || isWip.value);
+
+// Ask AI: all roles, all statuses
+const canAskAi = computed(() => true);
+
+// Delete: PO/Instructor only, not DONE
+const canDelete = computed(() => isPo.value && !isDone.value);
+
+// Priority stars: PO/Instructor only, not DONE
+const canChangePriority = computed(() => isPo.value && !isDone.value);
 
 const formattedPoComments = computed(() => {
     if (!props.task.po_comments) return "";

@@ -120,6 +120,27 @@ class ProjectController
     }
 
 
+    public function handleToggleActivity()
+    {
+        $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT);
+        $isActive = filter_var($_POST['is_active'] ?? true, FILTER_VALIDATE_BOOLEAN);
+
+        if (!$id) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'ID is required']);
+            return;
+        }
+
+        try {
+            $this->projectService->toggleProjectActivity((int)$id, $isActive);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
     public function handleGetDefaults()
     {
         $languages = Config::SUPPORTED_LANGUAGES;

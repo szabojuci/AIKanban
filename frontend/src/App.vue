@@ -7,6 +7,7 @@
         <ProjectSidebar
             v-if="isAuthenticated"
             v-model="drawerOpen"
+            :active-project-name="currentProject"
             @project-selected="handleProjectSelected"
             @open-github-modal="showGithubModal = true"
         />
@@ -20,7 +21,9 @@
                         aria-label="Toggle Menu"
                         class="btn btn-square btn-ghost drawer-button"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
                     </button>
                 </div>
                 <!-- Brand -->
@@ -42,6 +45,22 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         API Costs
+                    </button>
+                </div>
+
+                <div
+                    v-if="authUser?.is_instructor"
+                    class="flex-none ml-2 hidden sm:flex"
+                >
+                    <button
+                        @click="isDashboardOpen = true"
+                        class="btn btn-outline btn-sm btn-accent gap-2"
+                        title="Instructor Dashboard"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                        </svg>
+                        Dashboard
                     </button>
                 </div>
 
@@ -78,12 +97,26 @@
                     </span>
                 </div>
 
+                <!-- Audit Log Button -->
+                <div class="flex-none mr-2">
+                    <button
+                        v-if="currentProject"
+                        @click="isAuditLogModalOpen = true"
+                        class="btn btn-ghost btn-circle shadow-md"
+                        title="Audit Log"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V8.25H8.25m0 0h.375" />
+                        </svg>
+                    </button>
+                </div>
+
                 <!-- Requirements Button -->
                 <div class="flex-none mr-2">
                     <button
                         v-if="currentProject"
                         @click="isRequirementModalOpen = true"
-                        class="btn btn-ghost btn-circle"
+                        class="btn btn-ghost btn-circle shadow-md"
                         title="Project Requirements"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -120,10 +153,14 @@
                         >
 
                         <!-- sun icon (show in dark mode) -->
-                        <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,4.93,1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+                        <svg class="swap-on fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,4.93,1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/>
+                        </svg>
 
                         <!-- moon icon (show in light mode) -->
-                        <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/></svg>
+                        <svg class="swap-off fill-current w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                            <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Zm-9.5,6.69A8.14,8.14,0,0,1,7.08,5.22v.27A10.15,10.15,0,0,0,17.22,15.63a9.79,9.79,0,0,0,2.1-.22A8.11,8.11,0,0,1,12.14,19.73Z"/>
+                        </svg>
                     </label>
                 </div>
             </div>
@@ -142,7 +179,9 @@
                     role="alert"
                     class="alert alert-error"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     <span>Error: {{ error }}</span>
                 </div>
 
@@ -153,6 +192,7 @@
                     :current-project="currentProject"
                     :max-title-length="appConfig.maxTitleLength"
                     :max-description-length="appConfig.maxDescriptionLength"
+                    :user-role="userRole"
                     @task-updated="refreshTasks"
                     @task-deleted="refreshTasks"
                     @task-added="refreshTasks"
@@ -170,8 +210,10 @@
             :loading="codeLoading"
             :code="generatedCode"
             :error="codeError"
+            :task="currentTaskForCode"
             @close="isCodeModalOpen = false"
             @regenerate="handleRegenerateCode"
+            @commit="handleCommitToGithub"
         />
 
         <TaskQueryModal
@@ -190,6 +232,12 @@
             @close="isRequirementModalOpen = false"
         />
 
+        <AuditLogModal
+            :is-open="isAuditLogModalOpen"
+            :project-name="currentProject"
+            @close="isAuditLogModalOpen = false"
+        />
+
         <ApiCostModal
             :is-open="isApiCostModalOpen"
             @close="isApiCostModalOpen = false"
@@ -198,6 +246,12 @@
         <TeamModal
             :is-open="isTeamModalOpen"
             @close="isTeamModalOpen = false"
+        />
+
+        <DashboardModal
+            :is-open="isDashboardOpen"
+            @close="isDashboardOpen = false"
+            @view-board="handleViewBoard"
         />
 
         <!-- Global Toast Notification -->
@@ -255,8 +309,10 @@ import CodeGenerationModal from './components/modals/CodeGenerationModal.vue';
 import TaskQueryModal from './components/modals/TaskQueryModal.vue';
 import ApiCostModal from './components/modals/ApiCostModal.vue';
 import RequirementModal from './components/RequirementModal.vue';
+import AuditLogModal from './components/modals/AuditLogModal.vue';
 import PrivacyModal from './components/modals/PrivacyModal.vue';
 import TeamModal from './components/modals/TeamModal.vue';
+import DashboardModal from './components/modals/DashboardModal.vue';
 import LoginView from './components/LoginView.vue';
 import CookieBanner from './components/CookieBanner.vue';
 import ConfirmationModal from './components/modals/ConfirmationModal.vue';
@@ -274,6 +330,7 @@ const appConfig = ref({
     maxQueryLength: 1320
 });
 const currentProject = ref(null);
+const userRole = ref(null);
 const showGithubModal = ref(false);
 const drawerOpen = ref(false);
 const theme = ref(globalThis?.localStorage?.getItem('theme') || 'dark');
@@ -284,7 +341,7 @@ const toggleTheme = () => {
         globalThis.localStorage.setItem('theme', theme.value);
     }
     if (globalThis?.document) {
-        globalThis.document.documentElement.setAttribute('data-theme', theme.value);
+        globalThis.document.documentElement.dataset.theme = theme.value;
     }
 };
 
@@ -304,9 +361,11 @@ const queryTaskTarget = ref(null);
 
 // Local specialized modals
 const isRequirementModalOpen = ref(false);
+const isAuditLogModalOpen = ref(false);
 const isApiCostModalOpen = ref(false);
 const isPrivacyModalOpen = ref(false);
 const isTeamModalOpen = ref(false);
+const isDashboardOpen = ref(false);
 
 // Decomposition Confirmation State
 const isDecomposeConfirmOpen = ref(false);
@@ -340,6 +399,9 @@ const checkAuth = async () => {
         if (res.success && res.authenticated) {
             isAuthenticated.value = true;
             authUser.value = res.user;
+            if (res.user.last_active_project) {
+                currentProject.value = res.user.last_active_project;
+            }
             await refreshTasks();
         } else {
             isAuthenticated.value = false;
@@ -355,6 +417,9 @@ const checkAuth = async () => {
 const handleAuthSuccess = async (user) => {
     isAuthenticated.value = true;
     authUser.value = user;
+    if (user.last_active_project) {
+        currentProject.value = user.last_active_project;
+    }
     await refreshTasks();
 };
 
@@ -380,9 +445,11 @@ const handleGlobalEsc = (e) => {
         isCodeModalOpen.value = false;
         isQueryModalOpen.value = false;
         isRequirementModalOpen.value = false;
+        isAuditLogModalOpen.value = false;
         isApiCostModalOpen.value = false;
         isPrivacyModalOpen.value = false;
         isTeamModalOpen.value = false;
+        isDashboardOpen.value = false;
         isDecomposeConfirmOpen.value = false;
         drawerOpen.value = false;
     }
@@ -410,6 +477,16 @@ onBeforeUnmount(() => {
 const handleProjectSelected = async (projectName) => {
     currentProject.value = projectName;
     await refreshTasks();
+    try {
+        await api.saveActiveProject(projectName);
+    } catch (e) {
+        console.error("Failed to save active project:", e);
+    }
+};
+
+const handleViewBoard = async (projectName) => {
+    isDashboardOpen.value = false;
+    await handleProjectSelected(projectName);
 };
 
 const refreshTasks = async () => {
@@ -436,6 +513,11 @@ const refreshTasks = async () => {
         }
 
         tasks.value = data.tasks || {};
+
+        // Update user role for the current project
+        if (data.userRole) {
+            userRole.value = data.userRole;
+        }
 
         // Enrich tasks with subtask counts
         enrichTasksWithSubtaskInfo();
@@ -574,6 +656,26 @@ const handleQueryTaskSubmit = async (query) => {
         queryError.value = e.response?.data?.error || e.message;
     } finally {
         queryLoading.value = false;
+    }
+};
+const handleCommitToGithub = async () => {
+    const task = currentTaskForCode.value;
+    if (!task || !generatedCode.value) return;
+
+    codeLoading.value = true;
+    try {
+        const res = await api.commitToGithub(task.id, generatedCode.value, task.description);
+        if (res.success) {
+            showNotification(`Code committed successfully to ${res.filePath}`, "success");
+            isCodeModalOpen.value = false;
+            await refreshTasks();
+        } else {
+            showNotification("Commit failed: " + res.error, "error");
+        }
+    } catch (e) {
+        showNotification("Commit error: " + (e.response?.data?.error || e.message), "error");
+    } finally {
+        codeLoading.value = false;
     }
 };
 </script>

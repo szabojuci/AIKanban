@@ -1,7 +1,6 @@
 import axios from 'axios';
 
-// const API_BASE = '/TAIPO/api';
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '/TAIPO/api';
 
 // Create axios instance with base URL pointing to the proxy or direct backend
 const client = axios.create({
@@ -75,9 +74,10 @@ export const api = {
     },
 
     async getProjects() {
-        // Backend returns existingProjects in the main view data
-        const response = await client.get('/');
-        return response.data.projects || response.data.existingProjects || [];
+        const response = await client.post('/', {
+            action: 'list_projects'
+        });
+        return response.data;
     },
 
     async generateTasks(projectName, prompt, teamId = null) {
@@ -112,6 +112,24 @@ export const api = {
             action: 'generate_code',
             task_id: taskId,
             description: description
+        });
+        return response.data;
+    },
+
+    async commitToGithub(taskId, code, description) {
+        // Retrieves GitHub credentials from sessionStorage (set by GitHub login)
+        const token = sessionStorage.getItem('githubToken');
+        const username = sessionStorage.getItem('githubUsername');
+        const repo = sessionStorage.getItem('githubRepo');
+
+        const response = await client.post('/', {
+            action: 'commit_to_github',
+            task_id: taskId,
+            code: code,
+            description: description,
+            user_token: token,
+            user_username: username,
+            user_repo: repo
         });
         return response.data;
     },
@@ -167,6 +185,14 @@ export const api = {
         });
     },
 
+    async toggleProjectActivity(id, isActive) {
+        return client.post('/', {
+            action: 'toggle_project_activity',
+            id: id,
+            is_active: isActive
+        });
+    },
+
     async getSetting(key) {
         const response = await client.get(`/?action=get_setting&key=${key}`);
         return response.data;
@@ -186,6 +212,15 @@ export const api = {
             task_id: taskId,
             query: query
         });
+        return response.data;
+    },
+    async getTaskHistory(taskId) {
+        const response = await client.get(`/?action=get_task_history&task_id=${taskId}`);
+        return response.data;
+    },
+
+    async getProjectHistory(projectName) {
+        const response = await client.get(`/?action=get_project_history&project_name=${encodeURIComponent(projectName)}`);
         return response.data;
     },
 
@@ -240,6 +275,36 @@ export const api = {
         return response.data;
     },
 
+    async saveActiveProject(projectName) {
+        return client.post('/', {
+            action: 'save_active_project',
+            project_name: projectName
+        });
+    },
+
+    async reviewTask(taskId) {
+        return client.post('/', {
+            action: 'review_task',
+            task_id: taskId
+        });
+    },
+
+    async refineTask(taskId) {
+        const response = await client.post('/', {
+            action: 'refine_task',
+            task_id: taskId
+        });
+        return response.data;
+    },
+
+    async suggestPriority(taskId) {
+        const response = await client.post('/', {
+            action: 'suggest_priority',
+            task_id: taskId
+        });
+        return response.data;
+    },
+
     // Team Management
     async listTeams() {
         const response = await client.get('/?action=list_teams');
@@ -253,12 +318,17 @@ export const api = {
         });
         return response.data;
     },
-    async updateTeam(teamId, name) {
-        const response = await client.post('/', {
+
+    async updateTeam(teamId, name, settings = null) {
+        const payload = {
             action: 'update_team',
             team_id: teamId,
             name: name
-        });
+        };
+        if (settings) {
+            payload.settings = JSON.stringify(settings);
+        }
+        const response = await client.post('/', payload);
         return response.data;
     },
 
@@ -314,6 +384,28 @@ export const api = {
             action: 'set_project_team',
             id: projectId,
             team_id: teamId
+        });
+        return response.data;
+    },
+
+    // Instructor Dashboard
+    async getDashboard() {
+        const response = await client.get('/?action=get_dashboard');
+        return response.data;
+    },
+
+    getExportBackupUrl() {
+        return `${API_BASE}/?action=export_backup`;
+    },
+
+    async importBackup(file) {
+        const formData = new FormData();
+        formData.append('action', 'import_backup');
+        formData.append('backup_file', file);
+        const response = await client.post('/', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
         });
         return response.data;
     }

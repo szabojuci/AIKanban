@@ -2,28 +2,69 @@
 
 namespace App\Controller;
 
-use App\Service\TaskService;
-use App\Service\TaskAiService;
-use App\Service\ProjectService;
 use App\Config;
-use App\Exception\WipLimitExceededException;
-use App\Exception\ProjectAlreadyExistsException;
 use App\Utils;
-use App\Exception\GeminiApiException;
-use App\Exception\TaskNotFoundException;
 use Exception;
+
+use App\Exception\GeminiApiException;
+use App\Exception\ProjectAlreadyExistsException;
+use App\Exception\TaskNotFoundException;
+use App\Exception\WipLimitExceededException;
+
+use App\Service\HistoryService;
+use App\Service\ProjectService;
+use App\Service\TaskAiService;
+use App\Service\TaskService;
+
 
 class TaskController
 {
     private TaskService $taskService;
     private TaskAiService $taskAiService;
     private ProjectService $projectService;
+    private HistoryService $historyService;
 
-    public function __construct(TaskService $taskService, TaskAiService $taskAiService, ProjectService $projectService)
+    private const EXTENSION_MAP = [
+        'java' => 'java',
+        'python' => 'py',
+        'py' => 'py',
+        'php' => 'php',
+        'rust' => 'rs',
+        'rs' => 'rs',
+        'cpp' => 'cpp',
+        'c++' => 'cpp',
+        'csharp' => 'cs',
+        'cs' => 'cs',
+        'dart' => 'dart',
+        'go' => 'go',
+        'typescript' => 'ts',
+        'ts' => 'ts',
+        'javascript' => 'js',
+        'js' => 'js',
+        'sql' => 'sql',
+        'html' => 'html',
+        'css' => 'css',
+        'json' => 'json',
+        'yaml' => 'yaml',
+        'yml' => 'yaml',
+        'markdown' => 'md',
+        'md' => 'md'
+    ];
+
+    /**
+     * PHPDoc needed to help the IDE's static analysis engine properly index the methods.
+     *
+     * @param TaskService $taskService
+     * @param TaskAiService $taskAiService
+     * @param ProjectService $projectService
+     * @param HistoryService $historyService
+     */
+    public function __construct(TaskService $taskService, TaskAiService $taskAiService, ProjectService $projectService, HistoryService $historyService)
     {
         $this->taskService = $taskService;
         $this->taskAiService = $taskAiService;
         $this->projectService = $projectService;
+        $this->historyService = $historyService;
     }
 
     public function handleAddTask()
@@ -382,13 +423,21 @@ class TaskController
             }
             $description = $dbTask['description'];
 
+            $langInfo = $this->detectLanguageAndCleanCode($code);
+            $extension = $langInfo['extension'];
+            $cleanCode = $langInfo['code'];
+
             $safeDescription = preg_replace('/[^a-zA-Z0-9\s]/', '', $description);
             $safeDescription = trim(substr($safeDescription, 0, 50));
-            $fileName = 'Task_' . $taskId . '_' . str_replace(' ', '_', $safeDescription) . '.java';
-            $filePath = 'src/main/java/' . $fileName;
+            $fileName = 'Task_' . $taskId . '_' . str_replace(' ', '_', $safeDescription) . '.' . $extension;
+
+            // Heuristic pathing
+            $filePath = ($langInfo['language'] === 'java')
+                ? 'src/main/java/' . $fileName
+                : 'src/' . $fileName;
 
             $commitMessage = "feat: Adds task implementation for: " . substr($description, 0, 70) . '...';
-            $result = $ghService->commitFile($filePath, $code, $commitMessage);
+            $result = $ghService->commitFile($filePath, $cleanCode, $commitMessage);
 
             $userId = $_SESSION['user_id'] ?? 0;
             $isInstructor = $_SESSION['is_instructor'] ?? false;
@@ -400,6 +449,134 @@ class TaskController
             $code = ($e->getCode() >= 100 && $e->getCode() <= 599) ? $e->getCode() : 500;
             http_response_code($code);
             error_log("GitHub commit error: HTTP {$code}. " . $e->getMessage());
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Detects language from markdown block and extracts the raw code.
+     */
+    private function detectLanguageAndCleanCode(string $rawCode): array
+    {
+        $extension = 'txt';
+        $code = $rawCode;
+        $language = 'text';
+
+        // Check for markdown code blocks: ```language code ```
+        if (preg_match('/^```(\w*)\n?(.*?)```/s', trim($rawCode), $matches)) {
+            $language = strtolower($matches[1] ?: 'text');
+            $code = trim($matches[2]);
+            $extension = self::EXTENSION_MAP[$language] ?? 'txt';
+        }
+
+        return [
+            'language' => $language,
+            'extension' => $extension,
+            'code' => $code
+        ];
+    }
+
+    public function handleReviewTask()
+    {
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$taskId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => Config::ERROR_TASK_ID_REQUIRED]);
+            return;
+        }
+
+        try {
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $result = $this->taskAiService->reviewTaskForAcceptance($taskId, $userId, $isInstructor);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'result' => $result]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function handleGetTaskHistory()
+    {
+        $taskId = filter_var($_GET['task_id'] ?? $_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$taskId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => Config::ERROR_TASK_ID_REQUIRED]);
+            return;
+        }
+
+        try {
+            $history = $this->historyService->getTaskHistory($taskId);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'data' => $history]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function handleGetProjectHistory()
+    {
+        $projectName = $_GET['project_name'] ?? $_POST['project_name'] ?? null;
+        if (empty($projectName)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => 'Project name is required.']);
+            return;
+        }
+
+        try {
+            $history = $this->historyService->getProjectHistory($projectName);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'data' => $history]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    public function handleRefineTask()
+    {
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$taskId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => Config::ERROR_TASK_ID_REQUIRED]);
+            return;
+        }
+
+        try {
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $refinedDescription = $this->taskAiService->refineTaskDescription($taskId, $userId, $isInstructor);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'refined_description' => $refinedDescription]);
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Suggests a priority for a task using AI.
+     * @return void
+     */
+    public function handleSuggestPriority()
+    {
+        $taskId = filter_var($_POST['task_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$taskId) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'error' => Config::ERROR_TASK_ID_REQUIRED]);
+            return;
+        }
+
+        try {
+            $userId = $_SESSION['user_id'] ?? 0;
+            $isInstructor = $_SESSION['is_instructor'] ?? false;
+            $suggestion = $this->taskAiService->suggestPriority($taskId, $userId, $isInstructor);
+            header(Config::APP_JSON);
+            echo json_encode(['success' => true, 'suggestion' => $suggestion]);
+        } catch (Exception $e) {
+            http_response_code(500);
             echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
     }

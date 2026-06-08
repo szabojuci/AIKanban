@@ -1,0 +1,105 @@
+# ======================================================================
+# TAIPO preset: All-in-One + SQLite + PHP 8.5 [DEV]
+# Includes frontend source + pnpm install, DEVPLAN, and backend dev/test tooling files.
+# Usage:
+#   docker compose -f docker-compose.all-in-one.dev.yml up --build
+# ======================================================================
+
+name: taipo-ai-kanban-all-in-one-dev
+
+services:
+    allinone:
+        build:
+            context: .
+            dockerfile: Dockerfile.all-in-one.dev
+        container_name: taipo-all-in-one-dev
+        environment:
+            GEMINI_API_KEY: "${GEMINI_API_KEY}"
+            GITHUB_USERNAME: "${GITHUB_USERNAME}"
+            GITHUB_REPO: "${GITHUB_REPO}"
+            GITHUB_TOKEN: "${GITHUB_TOKEN}"
+            PROJECT_NAME: "${PROJECT_NAME:-TAIPO: AI Kanban (dev)}"
+            DB_TYPE: "${DB_TYPE:-sqlite}"
+            DB_HOST: "${DB_HOST:-localhost}"
+            DB_NAME: "${DB_NAME:-taipo_dev}"
+            DB_USER: "${DB_USER:-taipo_user}"
+            DB_PASS: "${DB_PASS:-taipo_password}"
+            SQLITE_FILE_NAME: "${SQLITE_FILE_NAME:-data/kanban.sqlite}"
+            TAIPO_OFFLINE: "true"
+        ports:
+            - "${PORT_ALLINONE:-8082}:80"
+        volumes:
+            - ./backend:/var/www/html/backend:rw
+            - ./frontend:/var/www/html/frontend:rw
+            - ./README.md:/var/www/html/README.md:ro
+            - ./API_DOCUMENTATION.md:/var/www/html/API_DOCUMENTATION.md:ro
+            - ./DATABASE_README.md:/var/www/html/DATABASE_README.md:ro
+            - ./PROJECT.md:/var/www/html/PROJECT.md:ro
+            - ./DEVPLAN.md:/var/www/html/DEVPLAN.md:ro
+            - taipo-data:/var/www/html/backend/data
+            - taipo-frontend-node-modules-allinone:/var/www/html/frontend/node_modules
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # ------------------------------------------------------------
+    # DATABASE ENGINES (Optional via Profiles)
+    # ------------------------------------------------------------
+
+    # MariaDB
+    mariadb:
+        profiles: ["mariadb", "all"]
+        image: mariadb:11.4
+        container_name: taipo-db-mariadb-aio-dev
+        environment:
+            - MARIADB_DATABASE=${DB_NAME:-taipo_dev}
+            - MARIADB_USER=${DB_USER:-taipo_user}
+            - MARIADB_PASSWORD=${DB_PASS:-taipo_password}
+            - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password}
+        volumes:
+            - taipo-db-mariadb-aio-dev-data:/var/lib/mysql
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # PostgreSQL
+    postgres:
+        profiles: ["postgres", "all"]
+        image: postgres:16-alpine
+        container_name: taipo-db-postgres-aio-dev
+        environment:
+            - POSTGRES_DB=${DB_NAME:-taipo_dev}
+            - POSTGRES_USER=${DB_USER:-taipo_user}
+            - POSTGRES_PASSWORD=${DB_PASS:-taipo_password}
+        volumes:
+            - taipo-db-postgres-aio-dev-data:/var/lib/postgresql/data
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # MySQL
+    mysql:
+        profiles: ["mysql", "all"]
+        image: mysql:8.4
+        container_name: taipo-db-mysql-aio-dev
+        environment:
+            - MYSQL_DATABASE=${DB_NAME:-taipo_dev}
+            - MYSQL_USER=${DB_USER:-taipo_user}
+            - MYSQL_PASSWORD=${DB_PASS:-taipo_password}
+            - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password}
+        volumes:
+            - taipo-db-mysql-aio-dev-data:/var/lib/mysql
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+networks:
+    taipo-network:
+        driver: bridge
+
+volumes:
+    taipo-data:
+    taipo-frontend-node-modules-allinone:
+    taipo-db-mariadb-aio-dev-data:
+    taipo-db-postgres-aio-dev-data:
+    taipo-db-mysql-aio-dev-data:

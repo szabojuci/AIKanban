@@ -4,11 +4,16 @@ namespace App\Service;
 
 use PDO;
 use Exception;
+
+use App\Config;
+use App\Prompts;
+
+use App\Exception\GeminiApiException;
+use App\Exception\ProjectUnauthorizedException;
+use App\Exception\TaskNotFoundException;
+
 use App\Service\GeminiService;
 use App\Service\ProjectAccessTrait;
-use App\Exception\TaskNotFoundException;
-use App\Exception\ProjectUnauthorizedException;
-use App\Config;
 
 class TaskAiService
 {
@@ -16,12 +21,14 @@ class TaskAiService
 
     private GeminiService $geminiService;
     private TaskService $taskService;
+    private HistoryService $historyService;
 
-    public function __construct(PDO $pdo, GeminiService $geminiService, TaskService $taskService)
+    public function __construct(PDO $pdo, GeminiService $geminiService, TaskService $taskService, HistoryService $historyService)
     {
         $this->pdo = $pdo;
         $this->geminiService = $geminiService;
         $this->taskService = $taskService;
+        $this->historyService = $historyService;
     }
 
     public function generateProjectTasks(string $projectName, string $rawPrompt, ?int $userId = null, bool $isInstructor = false): int
@@ -134,19 +141,26 @@ class TaskAiService
         $contextSummary = $this->getProjectContextSummary($projectName, $parentId);
 
         $prompt = "You are TAIPO. You are working on the project described below.\n\n" .
-                  $contextSummary . "\n\n" .
-                  "Decompose this parent user story (which is NOT yet implementation stage) into 3-5 concrete, high-quality technical subtasks: '{$finalDescription}'.\n\n" .
-                  "Quality Guidelines:\n" .
-                  "- Ensure subtasks are highly relevant to the parent story AND consistent with overall project requirements/context.\n" .
-                  "- Make each subtask atomic, tightly scoped, and directly contributing to the parent story's goal.\n" .
-                  "- Use clear, professional, component-level language where appropriate.\n\n" .
-                  "Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.\n" .
-                  "Format each line as: [Short Title] | [User Story Text]\n" .
-                  "The Short Title must be under 40 characters.\n" .
-                  "Do not include statuses.";
+            $contextSummary . "\n\n" .
+            "Decompose this parent user story (which is NOT yet implementation stage) into 3-5 concrete, high-quality technical subtasks: '{$finalDescription}'.\n\n" .
+            "Quality Guidelines:\n" .
+            "- Ensure subtasks are highly relevant to the parent story AND consistent with overall project requirements/context.\n" .
+            "- Make each subtask atomic, tightly scoped, and directly contributing to the parent story's goal.\n" .
+            "- Use clear, professional, component-level language where appropriate.\n\n" .
+            "Each subtask must be a User Story following the standard format: 'As a [actor], I want to [action], so that [benefit]'.\n" .
+            "Format each line as: [Short Title] | [User Story Text]\n" .
+            "The Short Title must be under 40 characters.\n" .
+            "Do not include statuses.";
 
         $rawTasks = $this->geminiService->askTaipo($prompt);
-        return $this->insertSubtasks($projectName, $parentId, $finalDescription, $rawTasks);
+        $count = $this->insertSubtasks($projectName, $parentId, $finalDescription, $rawTasks);
+
+        if ($parentId !== null) {
+            $this->historyService->setContext($userId);
+            $this->historyService->log($parentId, 'ai_decompose', null, null, "Story decomposed into $count subtasks.");
+        }
+
+        return $count;
     }
 
     private function getFinalDescription(string $description, ?int $parentId): string
@@ -172,7 +186,9 @@ class TaskAiService
 
         foreach ($lines as $line) {
             $line = trim($line);
-            if (!$line) { continue; }
+            if (!$line) {
+                continue;
+            }
 
             $parts = explode('|', $line, 2);
             $title = trim($parts[0]);
@@ -197,7 +213,7 @@ class TaskAiService
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$task) {
-            throw new TaskNotFoundException("Task not found.");
+            throw new TaskNotFoundException(Config::ERROR_TASK_NOT_FOUND);
         }
 
         $projectName = $task['project_name'];
@@ -212,17 +228,21 @@ class TaskAiService
         $taskContext = $this->formatTaskContext($task);
 
         $prompt = "You are TAIPO, an intelligent coding assistant for the project '{$projectName}'.\n\n" .
-                  "Project Context (includes requirements and other tasks):\n{$projectContext}\n\n" .
-                  "{$taskContext}\n\n" .
-                  "User Question: {$query}\n\n" .
-                  "Instructions:\n" .
-                  "- Answer the user's question specifically related to the current task.\n" .
-                  "- Use the project context to understand dependencies, shared requirements, or overall goals, but focus on the specific task.\n" .
-                  "- Refrain from lengthy intros.\n" .
-                  "- Provide code snippets if asked.";
+            "Project Context (includes requirements and other tasks):\n{$projectContext}\n\n" .
+            "{$taskContext}\n\n" .
+            "User Question: {$query}\n\n" .
+            "Instructions:\n" .
+            "- Answer the user's question specifically related to the current task.\n" .
+            "- Use the project context to understand dependencies, shared requirements, or overall goals, but focus on the specific task.\n" .
+            "- Refrain from lengthy intros.\n" .
+            "- Provide code snippets if asked.";
 
         $answer = $this->geminiService->askTaipo($prompt);
         $this->persistQueryAnswer($taskId, $query, $answer, $task['po_comments'] ?? '');
+
+        $this->historyService->setContext($userId);
+        $this->historyService->log($taskId, 'ai_query', $query, $answer);
+
         return $answer;
     }
 
@@ -277,9 +297,25 @@ class TaskAiService
 
         $contextSummary = $projectName ? $this->getProjectContextSummary($projectName, $taskId) : "";
         $prompt = "You are TAIPO, an intelligent coding assistant. You are working on the project described below.\n\n" .
-                  $contextSummary . "\n\n" .
-                  "TASK TO IMPLEMENT: '{$finalDescription}'\n\n" .
-                  "Please generate a **complete, but very concise** solution (code). The code should be **functional**, but only include the necessary imports and logic. Do not generate long explanatory comments or introduction text! Use a single Markdown code block (```language ... ```). If the language is not specified, infer it from the context or use a popular one suitable for the task.";
+            $contextSummary . "\n\n" .
+            "TASK TO IMPLEMENT: '{$finalDescription}'\n\n" .
+            "Please generate **2 distinct implementation approaches** (e.g., Approach 1: Functional/Concise, Approach 2: Object-Oriented/Structured) for this task.\n\n" .
+            "Guidelines for each approach:\n" .
+            "- It must be a **complete, but very concise** solution (code).\n" .
+            "- It should be **functional**, but only include necessary imports/dependencies and logic.\n" .
+            "- Do not generate long explanatory comments or introduction text!\n\n" .
+            "Format your output EXACTLY as follows:\n\n" .
+            "## Approach 1: [Name/Type of Approach 1]\n" .
+            "[Very brief 1-2 sentence explanation of this approach]\n" .
+            "```[language]\n" .
+            "[Code for approach 1]\n" .
+            "```\n\n" .
+            "## Approach 2: [Name/Type of Approach 2]\n" .
+            "[Very brief 1-2 sentence explanation of this approach]\n" .
+            "```[language]\n" .
+            "[Code for approach 2]\n" .
+            "```\n\n" .
+            "If the programming language is not specified, infer it from the context or use a popular one suitable for the task.";
 
         $rawText = $this->geminiService->askTaipo($prompt);
         $rawText = trim($rawText);
@@ -287,6 +323,9 @@ class TaskAiService
         if ($taskId !== null) {
             $stmt = $this->pdo->prepare("UPDATE {$prefix}tasks SET generated_code = :code WHERE id = :id");
             $stmt->execute([':code' => $rawText, ':id' => $taskId]);
+
+            $this->historyService->setContext($userId);
+            $this->historyService->log($taskId, 'ai_code_gen', null, null, "Code generated for task.");
         }
 
         return $rawText;
@@ -362,5 +401,216 @@ class TaskAiService
             'DONE' => 'DONE'
         ];
         return $statusMap[$rawStatus] ?? TaskService::STATUS_SPRINT_BACKLOG;
+    }
+
+    public function reviewTaskForAcceptance(int $taskId, ?int $userId = null, bool $isInstructor = false): array
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->prepare("SELECT id, project_name, title, description, po_comments, generated_code, status FROM {$prefix}tasks WHERE id = :id");
+        $stmt->execute([':id' => $taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$task) {
+            throw new TaskNotFoundException(Config::ERROR_TASK_NOT_FOUND);
+        }
+
+        $projectName = $task['project_name'];
+        if ($userId !== null && !$this->isAuthorized($projectName, $userId, $isInstructor)) {
+            throw new ProjectUnauthorizedException($projectName);
+        }
+
+        $context = $this->getProjectContextInfo($projectName);
+        $this->geminiService->setContext($userId, $context['team_id'] ?? null);
+
+        $prompt = Prompts::getAcceptanceReviewPrompt(
+            $task['title'],
+            $task['description'],
+            $task['generated_code'] ?? '',
+            $task['po_comments'] ?? ''
+        );
+
+        $rawResponse = $this->geminiService->askTaipo($prompt);
+        $result = $this->parseReviewResponse($rawResponse);
+
+        if ($result) {
+            $newStatus = ($result['status'] === 'ACCEPTED') ? 'DONE' : 'SPRINT BACKLOG';
+            $oldStatus = $task['status'];
+
+            // Update task status via TaskService to respect constraints
+            $this->taskService->updateStatus($taskId, $newStatus, $projectName, $userId ?? 0, $isInstructor);
+
+            // Add PO comment
+            $feedback = "**Acceptance Decision: {$result['status']}**\n";
+            $feedback .= "**Reason:** {$result['reason']}\n";
+            if ($result['status'] === 'REJECTED') {
+                $feedback .= "**Suggestions:** {$result['suggestions']}";
+            }
+            $this->persistPoComment($taskId, $feedback, $task['po_comments'] ?? '');
+
+            // Log to history
+            $this->historyService->setContext($userId, $context['team_id'] ?? null);
+            $this->historyService->log($taskId, 'ai_review', $oldStatus, $newStatus, $feedback);
+
+            return array_merge($result, ['new_status' => $newStatus]);
+        }
+
+        throw new GeminiApiException("Failed to parse AI review response.");
+    }
+
+    /**
+     * Enhances a task description using AI.
+     * Supports Story 2.4: Card Description Enhancement.
+     */
+    public function refineTaskDescription(int $taskId, ?int $userId = null, bool $isInstructor = false): string
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->prepare("SELECT * FROM {$prefix}tasks WHERE id = :id");
+        $stmt->execute([':id' => $taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$task) {
+            throw new TaskNotFoundException(Config::ERROR_TASK_NOT_FOUND);
+        }
+
+        $projectName = $task['project_name'];
+        if ($userId !== null && !$this->isAuthorized($projectName, $userId, $isInstructor)) {
+            throw new ProjectUnauthorizedException($projectName);
+        }
+
+        $context = $this->getProjectContextInfo($projectName);
+        $this->geminiService->setContext($userId, $context['team_id'] ?? null);
+
+        $projectContextSummary = $this->getProjectContextSummary($projectName, $taskId);
+
+        $prompt = Prompts::getRequirementRefinementPrompt(
+            $task['title'],
+            $task['description'],
+            $projectContextSummary
+        );
+
+        $enhancedDescription = $this->geminiService->askTaipo($prompt);
+
+        if (empty($enhancedDescription)) {
+            throw new GeminiApiException("AI failed to generate an enhanced description.");
+        }
+
+        return trim($enhancedDescription);
+    }
+
+    private function parseReviewResponse(string $raw): ?array
+    {
+        $status = '';
+        $reason = '';
+        $suggestions = '';
+
+        if (preg_match('/\[STATUS\]:(.*)/i', $raw, $m)) {
+            $status = trim($m[1]);
+        }
+        if (preg_match('/\[REASON\]:(.*)/i', $raw, $m)) {
+            $reason = trim($m[1]);
+        }
+        if (preg_match('/\[SUGGESTIONS\]:(.*)/i', $raw, $m)) {
+            $suggestions = trim($m[1]);
+        }
+
+        if ($status && $reason) {
+            return [
+                'status' => strtoupper($status),
+                'reason' => $reason,
+                'suggestions' => $suggestions
+            ];
+        }
+
+        return null;
+    }
+
+    private function persistPoComment(int $taskId, string $feedback, string $currentComments): void
+    {
+        $separator = $currentComments ? "\n\n---\n\n" : "";
+        $newComments = $currentComments . $separator . "**TAIPO Review:**\n" . $feedback;
+
+        $prefix = Config::getTablePrefix();
+        $updateStmt = $this->pdo->prepare("UPDATE {$prefix}tasks SET po_comments = :comments WHERE id = :id");
+        $updateStmt->execute([':comments' => $newComments, ':id' => $taskId]);
+    }
+
+    /**
+     * Suggests a priority for a task based on project context and backlog state.
+     * Supports Story 2.5: Priority Management.
+     *
+     * PHPDoc needed to help the IDE's static analysis engine properly index the methods.
+     *
+     * @param int $taskId
+     * @param int|null $userId
+     * @param bool $isInstructor
+     * @return array
+     * @throws TaskNotFoundException
+     * @throws ProjectUnauthorizedException
+     * @throws GeminiApiException
+     */
+    public function suggestPriority(int $taskId, ?int $userId = null, bool $isInstructor = false): array
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->prepare("SELECT * FROM {$prefix}tasks WHERE id = :id");
+        $stmt->execute([':id' => $taskId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$task) {
+            throw new TaskNotFoundException(Config::ERROR_TASK_NOT_FOUND);
+        }
+
+        $projectName = $task['project_name'];
+        if ($userId !== null && !$this->isAuthorized($projectName, $userId, $isInstructor)) {
+            throw new ProjectUnauthorizedException($projectName);
+        }
+
+        $context = $this->getProjectContextInfo($projectName);
+        $this->geminiService->setContext($userId, $context['team_id'] ?? null);
+
+        // Fetch context once and reuse
+        $projectContextSummary = $this->getProjectContextSummary($projectName, $taskId);
+
+        $prompt = Prompts::getPrioritySuggestionPrompt(
+            $task['title'],
+            $task['description'],
+            $projectContextSummary,
+            $projectContextSummary // Reusing the same summary for backlog state in this simplified call
+        );
+
+        $rawResponse = $this->geminiService->askTaipo($prompt);
+        $result = $this->parsePriorityResponse($rawResponse);
+
+        if (!$result) {
+            throw new GeminiApiException("Failed to parse AI priority suggestion.");
+        }
+
+        return $result;
+    }
+
+    private function parsePriorityResponse(string $raw): ?array
+    {
+        $priority = null;
+        $rationale = '';
+        $value = '';
+
+        if (preg_match('/\[PRIORITY\]:(.*)/i', $raw, $m)) {
+            $priority = (int)trim($m[1]);
+        }
+        if (preg_match('/\[RATIONALE\]:(.*)/i', $raw, $m)) {
+            $rationale = trim($m[1]);
+        }
+        if (preg_match('/\[VALUE\]:(.*)/i', $raw, $m)) {
+            $value = trim($m[1]);
+        }
+
+        if ($priority !== null && $rationale) {
+            return [
+                'priority' => $priority,
+                'rationale' => $rationale,
+                'value' => $value
+            ];
+        }
+
+        return null;
     }
 }

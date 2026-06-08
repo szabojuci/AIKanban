@@ -4,9 +4,9 @@ namespace App\Service;
 
 use PDO;
 use Exception;
-use App\Exception\ProjectNotFoundException;
-use App\Exception\ProjectAlreadyExistsException;
 use App\Config;
+use App\Exception\ProjectAlreadyExistsException;
+use App\Exception\ProjectNotFoundException;
 
 class ProjectService
 {
@@ -22,13 +22,19 @@ class ProjectService
         $prefix = Config::getTablePrefix();
 
         if ($isInstructor) {
-            $stmt = $this->pdo->prepare("SELECT id, name, team_id, created_at FROM {$prefix}projects ORDER BY name ASC");
+            $stmt = $this->pdo->prepare("
+                SELECT p.id, p.name, p.team_id, p.is_active, p.created_at, t.name as team_name
+                FROM {$prefix}projects p
+                LEFT JOIN {$prefix}teams t ON p.team_id = t.id
+                ORDER BY p.name ASC
+            ");
             $stmt->execute();
         } else {
             $stmt = $this->pdo->prepare("
-                SELECT DISTINCT p.id, p.name, p.team_id, p.created_at
+                SELECT DISTINCT p.id, p.name, p.team_id, p.is_active, p.created_at, t.name as team_name
                 FROM {$prefix}projects p
                 LEFT JOIN {$prefix}team_users tu ON p.team_id = tu.team_id
+                LEFT JOIN {$prefix}teams t ON p.team_id = t.id
                 WHERE p.user_id = :user_id OR tu.user_id = :user_id
                 ORDER BY p.name ASC
             ");
@@ -36,6 +42,17 @@ class ProjectService
         }
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getProjectMetrics(): array
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->query("SELECT project_name, COUNT(id) as total_tasks, SUM(CASE WHEN status = 'DONE' THEN 1 ELSE 0 END) as done_tasks, MAX(CASE WHEN status != 'DONE' AND status != 'SPRINT BACKLOG' THEN updated_at ELSE NULL END) as last_wip_update FROM {$prefix}tasks GROUP BY project_name");
+        $metrics = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $metrics[$row['project_name']] = $row;
+        }
+        return $metrics;
     }
 
     public function createProject(string &$name, ?int $userId = null, ?int $teamId = null): int
@@ -119,6 +136,10 @@ class ProjectService
             $stmt = $this->pdo->prepare("UPDATE {$prefix}tasks SET project_name = :newName WHERE project_name = :oldName");
             $stmt->execute([':newName' => $newName, ':oldName' => $oldName]);
 
+            // Update user last active project
+            $stmt = $this->pdo->prepare("UPDATE {$prefix}users SET last_active_project = :newName WHERE last_active_project = :oldName");
+            $stmt->execute([':newName' => $newName, ':oldName' => $oldName]);
+
             $this->pdo->commit();
         } catch (Exception $e) {
             if ($this->pdo->inTransaction()) {
@@ -154,6 +175,10 @@ class ProjectService
             $stmt = $this->pdo->prepare("DELETE FROM {$prefix}projects WHERE id = :id");
             $stmt->execute([':id' => $id]);
 
+            // Clear user last active project if it matches
+            $stmt = $this->pdo->prepare("UPDATE {$prefix}users SET last_active_project = NULL WHERE last_active_project = :name");
+            $stmt->execute([':name' => $name]);
+
             $this->pdo->commit();
         } catch (Exception $e) {
             if ($this->pdo->inTransaction()) {
@@ -161,5 +186,12 @@ class ProjectService
             }
             throw $e;
         }
+    }
+
+    public function toggleProjectActivity(int $projectId, bool $isActive): void
+    {
+        $prefix = Config::getTablePrefix();
+        $stmt = $this->pdo->prepare("UPDATE {$prefix}projects SET is_active = :is_active WHERE id = :id");
+        $stmt->execute([':is_active' => $isActive ? 1 : 0, ':id' => $projectId]);
     }
 }

@@ -9,4 +9,119 @@ class Prompts
         $lang = htmlspecialchars($language);
         return "Plan a project named {{PROJECT_NAME}}! We demonstrate a simulated project: a weather forecast webpage with a zoom-in / zoom-out style map, a time slider bar, and the introduction of unforeseen requirement changes. This project should be primarily written in {$lang}. Generate at least 10 tasks for the Kanban board covering these core features, basic development steps, and UI/UX. Provide each task on a new line without any prefix (e.g. [SPRINT BACKLOG]:) so they all go into the **SPRINT BACKLOG** column. Do not include introductory text.";
     }
+
+    public static function getPoCheckInPrompt(string $taskTitle, string $taskDesc, string $projectContext, ?string $tawosExample = null): string
+    {
+        $tawosSection = '';
+        if ($tawosExample) {
+            $tawosSection = "\n\n                Reference real-world agile feedback (from TAWOS dataset) for style calibration:\n                \"{$tawosExample}\"\n                Use a similar professional, concise tone.";
+        }
+
+        return "You are TAIPO, a Product Owner assistant with a professional, industrial tone inspired by the TAWOS dataset (GitHub/Jira style).
+
+                Project Context:
+                {$projectContext}
+
+                You are performing a routine check-in on this task:
+                TITLE: {$taskTitle}
+                DESCRIPTION: {$taskDesc}
+                {$tawosSection}
+
+                Write a short, professional, and slightly demanding comment (max 2 sentences).
+                Ask for progress, offer a tiny bit of PO guidance, or ask about potential blockers.
+                Do not be overly polite; be efficient. Do not use placeholders or intros.";
+    }
+
+    public static function getChangeRequestPrompt(string $projectName, string $requirements, string $boardStatus, ?array $tawosPattern = null): string
+    {
+        $tawosSection = '';
+        if ($tawosPattern) {
+            $tawosSection = "\n\n                Reference real-world agile issue for pattern inspiration (from TAWOS dataset):
+                Type: {$tawosPattern['type']} | Priority: {$tawosPattern['priority']}
+                Title: {$tawosPattern['title']}
+                Description: " . substr($tawosPattern['description_text'] ?? '', 0, 200) . "
+                Use this as inspiration for the scope and style of your CR, but adapt it to the current project.";
+        }
+
+        return "You are TAIPO, a Product Owner. You just received news from 'stakeholders' that requires an unexpected Change Request (CR) or a new User Story.
+
+                Project: {$projectName}
+                Current Requirements:
+                {$requirements}
+
+                Current Board Status:
+                {$boardStatus}
+                {$tawosSection}
+
+                Generate ONE new, realistic, and high-priority Change Request that complicates the project in a meaningful way (e.g., adding a new integration, changing a core UI requirement, or responding to market feedback).
+
+                Format the response strictly as:
+                [TITLE]: [A very short title, max 40 chars]
+                [STORY]: [Standard format: As a [user], I want to [action], so that [benefit]]";
+    }
+
+    public static function getAcceptanceReviewPrompt(string $taskTitle, string $taskDesc, string $code = '', string $comments = ''): string
+    {
+        $codeSection = $code ? "\n[SUBMITTED CODE/WORK]:\n{$code}\n" : "";
+        $commentsSection = $comments ? "\n[PREVIOUS PO COMMENTS]:\n{$comments}\n" : "";
+
+        return "You are TAIPO, a Product Owner assistant. You are reviewing a task that has been submitted for approval.
+
+                TASK TITLE: {$taskTitle}
+                TASK DESCRIPTION (Acceptance Criteria): {$taskDesc}
+                {$codeSection}{$commentsSection}
+
+                Evaluate if the task is complete based on the description and acceptance criteria.
+                If there are previous comments, ensure the task addressed them.
+                Respond strictly in the following format:
+                [STATUS]: [ACCEPTED or REJECTED]
+                [REASON]: [One sentence explanation of the decision]
+                [SUGGESTIONS]: [If REJECTED, give 1-2 specific points to fix. If ACCEPTED, say 'Great job!']";
+    }
+
+    public static function getRequirementRefinementPrompt(string $taskTitle, string $taskDesc, string $projectContext): string
+    {
+        return "You are TAIPO, a Product Owner assistant. I want you to refine and enhance a task description to make it clearer, more complete, and more professional.
+
+                Project Context:
+                {$projectContext}
+
+                Current Task Title: {$taskTitle}
+                Current Description: {$taskDesc}
+
+                Please provide an enhanced version of the description.
+                Focus on:
+                1. Clarity: Use professional, industrial tone.
+                2. Completeness: Add a short list of 'Acceptance Criteria' if missing.
+                3. Technical Context: Mention any relevant project constraints if applicable.
+
+                The enhanced description must maintain the original intent but be much more 'ready for development'.
+                Respond ONLY with the new description text. Do not include any intros or outros.";
+    }
+
+    public static function getPrioritySuggestionPrompt(string $taskTitle, string $taskDesc, string $projectContext, string $backlogSummary): string
+    {
+        return "You are TAIPO, a Product Owner assistant. I want you to evaluate the priority of a specific task within the context of its project and the current backlog.
+
+                Project Context:
+                {$projectContext}
+
+                Current Backlog State (Summary of other tasks and their statuses):
+                {$backlogSummary}
+
+                Target Task:
+                TITLE: {$taskTitle}
+                DESCRIPTION: {$taskDesc}
+
+                Evaluate the priority on a scale of 0 to 3:
+                0: None / Normal (Default)
+                1: Low (Nice to have, non-blocking)
+                2: Medium (Standard feature, important for next milestone)
+                3: High (Critical, blocker, or core requirement)
+
+                Respond strictly in the following format:
+                [PRIORITY]: [0-3]
+                [RATIONALE]: [A short, professional explanation of why this priority was chosen, max 2 sentences]
+                [VALUE]: [Brief mention of business or technical value provided by this task]";
+    }
 }

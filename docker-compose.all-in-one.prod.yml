@@ -1,0 +1,95 @@
+# ======================================================================
+# TAIPO preset: All-in-One + SQLite + PHP 8.5 (Alpine) [PROD]
+# Usage:
+#   docker compose -f docker-compose.all-in-one.prod.yml up -d --build
+# ======================================================================
+
+name: taipo-ai-kanban-all-in-one-prod
+
+services:
+    allinone:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: taipo-all-in-one-prod
+        environment:
+            GEMINI_API_KEY: "${GEMINI_API_KEY}"
+            GITHUB_USERNAME: "${GITHUB_USERNAME}"
+            GITHUB_REPO: "${GITHUB_REPO}"
+            GITHUB_TOKEN: "${GITHUB_TOKEN}"
+            PROJECT_NAME: "${PROJECT_NAME:-TAIPO: AI Kanban (prod)}"
+            DB_TYPE: "${DB_TYPE:-sqlite}"
+            DB_HOST: "${DB_HOST:-localhost}"
+            DB_NAME: "${DB_NAME:-taipo}"
+            DB_USER: "${DB_USER:-taipo_user}"
+            DB_PASS: "${DB_PASS:-taipo_password}"
+            SQLITE_FILE_NAME: "${SQLITE_FILE_NAME:-data/kanban.sqlite}"
+            TAIPO_OFFLINE: "true"
+        ports:
+            - "${PORT_ALLINONE:-8082}:80"
+        volumes:
+            - taipo-data:/var/www/html/backend/data
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # ------------------------------------------------------------
+    # DATABASE ENGINES (Optional via Profiles)
+    # ------------------------------------------------------------
+
+    # MariaDB
+    mariadb:
+        profiles: ["mariadb", "all"]
+        image: mariadb:11.4
+        container_name: taipo-db-mariadb-aio-prod
+        environment:
+            - MARIADB_DATABASE=${DB_NAME:-taipo}
+            - MARIADB_USER=${DB_USER:-taipo_user}
+            - MARIADB_PASSWORD=${DB_PASS:-taipo_password}
+            - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password}
+        volumes:
+            - taipo-db-mariadb-aio-prod-data:/var/lib/mysql
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # PostgreSQL
+    postgres:
+        profiles: ["postgres", "all"]
+        image: postgres:16-alpine
+        container_name: taipo-db-postgres-aio-prod
+        environment:
+            - POSTGRES_DB=${DB_NAME:-taipo}
+            - POSTGRES_USER=${DB_USER:-taipo_user}
+            - POSTGRES_PASSWORD=${DB_PASS:-taipo_password}
+        volumes:
+            - taipo-db-postgres-aio-prod-data:/var/lib/postgresql/data
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+    # MySQL
+    mysql:
+        profiles: ["mysql", "all"]
+        image: mysql:8.4
+        container_name: taipo-db-mysql-aio-prod
+        environment:
+            - MYSQL_DATABASE=${DB_NAME:-taipo}
+            - MYSQL_USER=${DB_USER:-taipo_user}
+            - MYSQL_PASSWORD=${DB_PASS:-taipo_password}
+            - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password}
+        volumes:
+            - taipo-db-mysql-aio-prod-data:/var/lib/mysql
+        restart: unless-stopped
+        networks:
+            - taipo-network
+
+networks:
+    taipo-network:
+        driver: bridge
+
+volumes:
+    taipo-data:
+    taipo-db-mariadb-aio-prod-data:
+    taipo-db-postgres-aio-prod-data:
+    taipo-db-mysql-aio-prod-data:

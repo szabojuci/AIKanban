@@ -26,15 +26,33 @@ class TeamService
 
     public function listTeams(): array
     {
-        $stmt = $this->pdo->prepare("SELECT id, name, created_at FROM {$this->prefix}teams ORDER BY name ASC");
+        $stmt = $this->pdo->prepare("
+            SELECT id, name, created_at,
+                   sim_min_feedback_sec, sim_max_feedback_sec,
+                   sim_min_cr_sec, sim_max_cr_sec
+            FROM {$this->prefix}teams
+            ORDER BY name ASC
+        ");
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function updateTeam(int $teamId, string $name): void
+    public function updateTeam(int $teamId, string $name, array $settings = []): void
     {
-        $stmt = $this->pdo->prepare("UPDATE {$this->prefix}teams SET name = :name WHERE id = :id");
-        $stmt->execute([':name' => $name, ':id' => $teamId]);
+        $updates = ["name = :name"];
+        $params = [':name' => $name, ':id' => $teamId];
+
+        $allowedSettings = ['sim_min_feedback_sec', 'sim_max_feedback_sec', 'sim_min_cr_sec', 'sim_max_cr_sec'];
+        foreach ($allowedSettings as $key) {
+            if (array_key_exists($key, $settings)) {
+                $updates[] = "$key = :$key";
+                $params[":$key"] = $settings[$key] === '' ? null : (int)$settings[$key];
+            }
+        }
+
+        $setClause = implode(", ", $updates);
+        $stmt = $this->pdo->prepare("UPDATE {$this->prefix}teams SET $setClause WHERE id = :id");
+        $stmt->execute($params);
     }
 
     public function deleteTeam(int $teamId): void
@@ -122,4 +140,39 @@ class TeamService
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Resolves the user's role for a given project by checking:
+     * 1. The user's role in the project's team (via team_users)
+     * 2. Whether the user is the project owner (fallback to Product Owner)
+     * Returns null if the user has no role for the project.
+     */
+    public function getUserRoleForProject(int $userId, string $projectName): ?string
+    {
+        // 1. Check team role
+        $stmt = $this->pdo->prepare("
+            SELECT r.name
+            FROM {$this->prefix}team_users tu
+            JOIN {$this->prefix}roles r ON tu.role_id = r.id
+            JOIN {$this->prefix}projects p ON p.team_id = tu.team_id
+            WHERE tu.user_id = :user_id AND p.name = :project_name
+        ");
+        $stmt->execute([':user_id' => $userId, ':project_name' => $projectName]);
+        $role = $stmt->fetchColumn();
+
+        if ($role) {
+            return $role;
+        }
+
+        // 2. Project owner without team → treat as Product Owner
+        $stmt = $this->pdo->prepare("
+            SELECT COUNT(*) FROM {$this->prefix}projects
+            WHERE name = :name AND user_id = :user_id
+        ");
+        $stmt->execute([':name' => $projectName, ':user_id' => $userId]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            return 'Product Owner';
+        }
+
+        return null;
+    }
 }
